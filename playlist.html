@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RifqyMusic | Playlist</title>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #121212;
+      color: white;
+      padding: 30px;
+    }
+    h1 {
+      color: #1DB954;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #logoutBtn {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.2s;
+    }
+    #logoutBtn:hover {
+      background: #c0392b;
+    }
+    input[type="file"] {
+      margin: 10px 0;
+      background: #1DB954;
+      padding: 8px;
+      border-radius: 8px;
+    }
+    audio {
+      display: block;
+      margin-top: 10px;
+    }
+    button {
+      background: #1DB954;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: 0.2s;
+    }
+    button:hover {
+      background: #17a74a;
+    }
+    #playlist {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    🎵 RifqyMusic
+    <button id="logoutBtn">Logout</button>
+  </h1>
+
+  <p id="userEmail"></p>
+  <input type="file" id="musicFile" accept="audio/*" />
+  <button id="uploadBtn">Upload Lagu</button>
+
+  <div id="playlist"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL, listAll } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAtfx_L-Nd3_1V-QRdQ1ywnt_Hzn0xcozA",
+      authDomain: "rifqymusic-cc30c.firebaseapp.com",
+      projectId: "rifqymusic-cc30c",
+      storageBucket: "rifqymusic-cc30c.firebasestorage.app",
+      messagingSenderId: "1081536375226",
+      appId: "1:1081536375226:web:3bc702ac2ca6e25debd583",
+      measurementId: "G-F86NRH3XKE"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const storage = getStorage(app);
+
+    const uploadBtn = document.getElementById("uploadBtn");
+    const fileInput = document.getElementById("musicFile");
+    const playlistDiv = document.getElementById("playlist");
+    const userEmail = document.getElementById("userEmail");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    // Cek login
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        userEmail.textContent = `Login sebagai: ${user.email}`;
+        loadPlaylist(user.uid);
+      } else {
+        window.location.href = "index.html";
+      }
+    });
+
+    // Logout
+    logoutBtn.onclick = async () => {
+      await signOut(auth);
+      alert("Kamu telah logout. Sampai jumpa di RifqyMusic! 🎧");
+      window.location.href = "index.html";
+    };
+
+    // Load playlist user
+    async function loadPlaylist(uid) {
+      const listRef = ref(storage, `songs/${uid}/`);
+      const result = await listAll(listRef);
+      playlistDiv.innerHTML = "<h3>Daftar Lagu:</h3>";
+      for (const item of result.items) {
+        const url = await getDownloadURL(item);
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.src = url;
+        playlistDiv.appendChild(audio);
+      }
+    }
+
+    // Upload lagu ke Storage
+    uploadBtn.onclick = async () => {
+      const user = auth.currentUser;
+      if (!user) return alert("Kamu belum login!");
+      const file = fileInput.files[0];
+      if (!file) return alert("Pilih file lagu dulu!");
+      const songRef = ref(storage, `songs/${user.uid}/${file.name}`);
+      await uploadBytes(songRef, file);
+      alert("Lagu berhasil diupload!");
+      loadPlaylist(user.uid);
+    };
+  </script>
+</body>
+</html>
