@@ -1,74 +1,122 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RifqyMusic | Playlist</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RifqyMusic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
+      margin: 0;
       font-family: 'Poppins', sans-serif;
-      background: #121212;
+      background-color: #121212;
       color: white;
-      padding: 30px;
     }
-    h1 {
-      color: #1DB954;
+    header {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      background-color: #1DB954;
+      padding: 12px 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
-    #logoutBtn {
-      background: #e74c3c;
-      color: white;
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+    }
+    header h1 span {
+      color: #000;
+      margin-left: 6px;
+    }
+    button.logout {
+      background-color: #e53935;
       border: none;
-      padding: 8px 15px;
-      border-radius: 8px;
+      color: white;
+      padding: 8px 14px;
+      border-radius: 6px;
       cursor: pointer;
-      font-weight: bold;
-      transition: 0.2s;
+      font-weight: 600;
     }
-    #logoutBtn:hover {
-      background: #c0392b;
+    .container {
+      max-width: 600px;
+      margin: 30px auto;
+      padding: 20px;
+      background-color: #181818;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.4);
+    }
+    .email {
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #ccc;
+    }
+    .upload-box {
+      border: 2px dashed #1DB954;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      margin-bottom: 25px;
     }
     input[type="file"] {
-      margin: 10px 0;
-      background: #1DB954;
-      padding: 8px;
-      border-radius: 8px;
-    }
-    audio {
-      display: block;
       margin-top: 10px;
-    }
-    button {
-      background: #1DB954;
+      background-color: #1DB954;
       color: white;
       border: none;
       padding: 10px;
       border-radius: 8px;
+    }
+    button#uploadBtn {
+      background-color: #1DB954;
+      border: none;
+      color: white;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: 8px;
       cursor: pointer;
-      font-weight: bold;
-      transition: 0.2s;
+      margin-top: 15px;
     }
-    button:hover {
-      background: #17a74a;
+    button#uploadBtn:hover {
+      background-color: #19a44a;
     }
-    #playlist {
+    .song-list {
       margin-top: 20px;
+    }
+    .song-item {
+      background-color: #282828;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    audio {
+      width: 180px;
+      outline: none;
     }
   </style>
 </head>
 <body>
-  <h1>
-    🎵 RifqyMusic
-    <button id="logoutBtn">Logout</button>
-  </h1>
+  <header>
+    <h1>🎵 <span>RifqyMusic</span></h1>
+    <button class="logout" id="logoutBtn">Logout</button>
+  </header>
 
-  <p id="userEmail"></p>
-  <input type="file" id="musicFile" accept="audio/*" />
-  <button id="uploadBtn">Upload Lagu</button>
-
-  <div id="playlist"></div>
+  <div class="container">
+    <div class="email" id="userEmail"></div>
+    <div class="upload-box">
+      <h3>🎧 Tambah Lagu Baru</h3>
+      <input type="file" id="fileInput" accept="audio/*" />
+      <br />
+      <button id="uploadBtn">Unggah Lagu</button>
+    </div>
+    <div class="song-list" id="songList">
+      <p>🎶 Lagu kamu akan muncul di sini...</p>
+    </div>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
@@ -89,54 +137,57 @@
     const auth = getAuth(app);
     const storage = getStorage(app);
 
-    const uploadBtn = document.getElementById("uploadBtn");
-    const fileInput = document.getElementById("musicFile");
-    const playlistDiv = document.getElementById("playlist");
-    const userEmail = document.getElementById("userEmail");
-    const logoutBtn = document.getElementById("logoutBtn");
+    const userEmail = document.getElementById('userEmail');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const songList = document.getElementById('songList');
+    const logoutBtn = document.getElementById('logoutBtn');
 
-    // Cek login
     onAuthStateChanged(auth, (user) => {
       if (user) {
         userEmail.textContent = `Login sebagai: ${user.email}`;
-        loadPlaylist(user.uid);
+        loadSongs(user.uid);
       } else {
         window.location.href = "index.html";
       }
     });
 
-    // Logout
-    logoutBtn.onclick = async () => {
-      await signOut(auth);
-      alert("Kamu telah logout. Sampai jumpa di RifqyMusic! 🎧");
-      window.location.href = "index.html";
-    };
-
-    // Load playlist user
-    async function loadPlaylist(uid) {
-      const listRef = ref(storage, `songs/${uid}/`);
-      const result = await listAll(listRef);
-      playlistDiv.innerHTML = "<h3>Daftar Lagu:</h3>";
-      for (const item of result.items) {
-        const url = await getDownloadURL(item);
-        const audio = document.createElement("audio");
-        audio.controls = true;
-        audio.src = url;
-        playlistDiv.appendChild(audio);
+    async function loadSongs(uid) {
+      const folderRef = ref(storage, `songs/${uid}/`);
+      const list = await listAll(folderRef);
+      songList.innerHTML = "";
+      if (list.items.length === 0) {
+        songList.innerHTML = "<p>Belum ada lagu, yuk tambah dulu 🎧</p>";
+      } else {
+        for (const item of list.items) {
+          const url = await getDownloadURL(item);
+          const div = document.createElement('div');
+          div.className = 'song-item';
+          div.innerHTML = `
+            <span>${item.name}</span>
+            <audio controls src="${url}"></audio>
+          `;
+          songList.appendChild(div);
+        }
       }
     }
 
-    // Upload lagu ke Storage
-    uploadBtn.onclick = async () => {
+    uploadBtn.addEventListener('click', async () => {
       const user = auth.currentUser;
       if (!user) return alert("Kamu belum login!");
       const file = fileInput.files[0];
       if (!file) return alert("Pilih file lagu dulu!");
-      const songRef = ref(storage, `songs/${user.uid}/${file.name}`);
-      await uploadBytes(songRef, file);
-      alert("Lagu berhasil diupload!");
-      loadPlaylist(user.uid);
-    };
+      const storageRef = ref(storage, `songs/${user.uid}/${file.name}`);
+      await uploadBytes(storageRef, file);
+      alert("✅ Lagu berhasil diunggah!");
+      loadSongs(user.uid);
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      signOut(auth).then(() => {
+        window.location.href = "index.html";
+      });
+    });
   </script>
 </body>
 </html>
