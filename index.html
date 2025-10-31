@@ -3,102 +3,156 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RifqyMusic | Login</title>
+  <title>RifqyAI Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
       font-family: 'Poppins', sans-serif;
+      background-color: #0b0c10;
+      color: white;
+      margin: 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
       height: 100vh;
-      background: linear-gradient(135deg, #1DB954, #191414);
-      color: white;
     }
-    .card {
-      background: rgba(0,0,0,0.8);
-      padding: 30px;
-      border-radius: 20px;
+    header {
+      background-color: #1DB954;
+      color: #000;
+      font-weight: 600;
       text-align: center;
-      width: 300px;
-      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+      padding: 14px;
+      font-size: 20px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 20px;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+    .bubble {
+      padding: 12px 16px;
+      border-radius: 14px;
+      max-width: 80%;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+    .user {
+      background-color: #1DB954;
+      color: #000;
+      align-self: flex-end;
+      border-bottom-right-radius: 2px;
+    }
+    .bot {
+      background-color: #222;
+      color: #fff;
+      align-self: flex-start;
+      border-bottom-left-radius: 2px;
+    }
+    footer {
+      display: flex;
+      padding: 12px;
+      background-color: #141414;
+      border-top: 1px solid #222;
     }
     input {
-      width: 90%;
+      flex: 1;
       padding: 10px;
-      margin: 8px 0;
-      border-radius: 8px;
       border: none;
+      border-radius: 8px;
       outline: none;
+      font-size: 15px;
+      background-color: #1f1f1f;
+      color: white;
     }
     button {
-      background: #1DB954;
+      margin-left: 10px;
+      background-color: #1DB954;
       border: none;
-      padding: 10px 15px;
+      color: black;
+      font-weight: 600;
       border-radius: 8px;
+      padding: 10px 16px;
       cursor: pointer;
-      color: white;
-      font-weight: bold;
+      transition: 0.2s;
     }
     button:hover {
-      background: #17a74a;
+      background-color: #17a84a;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h2>🎵 RifqyMusic</h2>
-    <p>Masuk / Daftar akun</p>
-    <input type="email" id="email" placeholder="Email" />
-    <input type="password" id="password" placeholder="Password" />
-    <button id="loginBtn">Login</button>
-    <button id="registerBtn">Daftar</button>
-    <p id="msg"></p>
+  <header>🤖 RifqyAI Chat</header>
+  <div class="chat-container" id="chatContainer">
+    <div class="bubble bot">Halo! Aku <b>RifqyAI</b>. Ada yang bisa aku bantu hari ini? 😎</div>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+  <footer>
+    <input type="text" id="userInput" placeholder="Tulis pesan..." />
+    <button id="sendBtn">Kirim</button>
+  </footer>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAtfx_L-Nd3_1V-QRdQ1ywnt_Hzn0xcozA",
-      authDomain: "rifqymusic-cc30c.firebaseapp.com",
-      projectId: "rifqymusic-cc30c",
-      storageBucket: "rifqymusic-cc30c.firebasestorage.app",
-      messagingSenderId: "1081536375226",
-      appId: "1:1081536375226:web:3bc702ac2ca6e25debd583",
-      measurementId: "G-F86NRH3XKE"
-    };
+  <script>
+    const chatContainer = document.getElementById("chatContainer");
+    const userInput = document.getElementById("userInput");
+    const sendBtn = document.getElementById("sendBtn");
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
+    const API_KEY = "AIzaSyDGGiKqtZgCzBrYdgHdaV-2LBLigL6cq7g"; // <--- GANTI INI DENGAN KEY KAMU
 
-    const loginBtn = document.getElementById("loginBtn");
-    const registerBtn = document.getElementById("registerBtn");
-    const msg = document.getElementById("msg");
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+      
+      appendMessage(text, "user");
+      userInput.value = "";
 
-    loginBtn.onclick = async () => {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+      appendMessage("Mengetik...", "bot");
+
       try {
-        await signInWithEmailAndPassword(auth, email, password);
-        msg.textContent = "Berhasil login!";
-        window.location.href = "playlist.html";
-      } catch (e) {
-        msg.textContent = e.message;
+        const response = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + API_KEY,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text }] }]
+            }),
+          }
+        );
+        const data = await response.json();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, aku gak paham 😅";
+        removeTyping();
+        appendMessage(reply, "bot");
+      } catch (err) {
+        removeTyping();
+        appendMessage("⚠️ Gagal menghubungi server. Coba lagi nanti.", "bot");
+        console.error(err);
       }
-    };
+    }
 
-    registerBtn.onclick = async () => {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      try {
-        await createUserWithEmailAndPassword(auth, email, password);
-        msg.textContent = "Akun berhasil dibuat!";
-      } catch (e) {
-        msg.textContent = e.message;
+    function appendMessage(text, sender) {
+      const div = document.createElement("div");
+      div.classList.add("bubble", sender);
+      div.innerHTML = text;
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function removeTyping() {
+      const typingBubbles = document.querySelectorAll(".bot");
+      if (typingBubbles.length > 0 && typingBubbles[typingBubbles.length - 1].innerHTML === "Mengetik...") {
+        typingBubbles[typingBubbles.length - 1].remove();
       }
-    };
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    userInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
   </script>
 </body>
 </html>
