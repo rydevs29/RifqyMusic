@@ -1,344 +1,104 @@
-<!--
-  RifqyMusic - GitHub Pages single-file (index.html) with Email Login + Playlists
-
-  Cara pakai singkat:
-  1) Buat repo GitHub baru (mis. nama: rifqymusic).
-  2) Tambahkan file index.html (isi file ini) ke root repo.
-  3) Commit & push ke branch main.
-  4) Aktifkan GitHub Pages (Settings -> Pages -> Branch: main -> folder: /(root)).
-  5) Buat project Firebase, tambahkan Web App, lalu ganti firebaseConfig di bagian // --- FIREBASE CONFIG HERE ---
-  6) Di Firebase Console: Authentication -> aktifkan Email/Password; Firestore -> buat database; Storage -> buat bucket.
-
-  Struktur Firestore yang dipakai:
-  - songs (collection)
-    - {songId}: { title, artist, url, fileName, createdAt }
-  - playlists (collection)
-    - {playlistId}: { name, ownerUid, createdAt }
-  - playlists/{playlistId}/items (subcollection)
-    - {itemId}: { songId, addedAt }
-
-  Rules contoh (TEST ONLY, batasi ukuran file <25MB):
-  Firestore:
-  rules_version = '2';
-  service cloud.firestore {
-    match /databases/{database}/documents {
-      match /songs/{songId} { allow read: if true; allow write: if request.auth != null; }
-      match /playlists/{playlistId} { allow read: if true; allow write: if request.auth.uid == request.resource.data.ownerUid; }
-      match /playlists/{playlistId}/items/{itemId} { allow read: if true; allow write: if request.auth.uid == resource.data.ownerUid || request.auth != null; }
-    }
-  }
-
-  Storage:
-  rules_version = '2';
-  service firebase.storage {
-    match /b/{bucket}/o {
-      match /songs/{allPaths=**} {
-        allow read: if true;
-        allow write: if request.auth != null && request.resource.size < 25 * 1024 * 1024;
-      }
-    }
-  }
-
-  PERINGATAN: Ini contoh untuk development/percobaan. Jangan gunakan rules test ini di produksi.
---><!doctype html>
-
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>RifqyMusic — GitHub Pages + Firebase (Login & Playlists)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RifqyMusic | Login</title>
   <style>
-    :root{ --bg:#071021; --card:#0b1220; --accent:#1db954; --muted:#96a0b3; --glass: rgba(255,255,255,0.03); --radius:12px; }
-    *{box-sizing:border-box;font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;}
-    body{margin:0;padding:18px;background:linear-gradient(180deg,#020617 0%, #071021 100%);color:#e6eef8;min-height:100vh;}
-    .wrap{max-width:1100px;margin:0 auto;}
-    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-    h1{font-size:18px;margin:0}
-    .card{background:var(--card);border-radius:var(--radius);padding:14px;box-shadow:0 6px 18px rgba(2,6,23,0.7);}    
-    .two{display:grid;grid-template-columns:1fr 340px;gap:16px}
-    input,select,button{font-family:inherit}
-    input[type=text], input[type=email], input[type=password]{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit}
-    .btn{background:var(--accent);color:#042017;padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
-    .muted{color:var(--muted);font-size:13px}
-    .songs{display:flex;flex-direction:column;gap:8px;max-height:56vh;overflow:auto;margin-top:10px}
-    .song{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;background:linear-gradient(90deg, rgba(255,255,255,0.01), transparent)}
-    .song .meta{flex:1;min-width:0}
-    .song h4{margin:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .song p{margin:0;color:var(--muted);font-size:12px}
-    .playlists{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-    .playlist{padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);display:flex;justify-content:space-between;align-items:center}
-    @media (max-width:900px){ .two{grid-template-columns:1fr} }
+    body {
+      font-family: 'Poppins', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #1DB954, #191414);
+      color: white;
+    }
+    .card {
+      background: rgba(0,0,0,0.8);
+      padding: 30px;
+      border-radius: 20px;
+      text-align: center;
+      width: 300px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+    }
+    input {
+      width: 90%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+    }
+    button {
+      background: #1DB954;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+    }
+    button:hover {
+      background: #17a74a;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>rifqymusic</h1>
-        <div class="muted">Personal player — your songs, your rules</div>
-      </div>
-      <div id="authArea"></div>
-    </header><div id="mainArea">
-  <!-- Content injected by JS: login view or app view -->
-</div>
+  <div class="card">
+    <h2>🎵 RifqyMusic</h2>
+    <p>Masuk / Daftar akun</p>
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Password" />
+    <button id="loginBtn">Login</button>
+    <button id="registerBtn">Daftar</button>
+    <p id="msg"></p>
+  </div>
 
-<footer style="margin-top:18px;color:var(--muted);font-size:13px">Tip: Jangan unggah musik berhak cipta tanpa izin. Hosted on GitHub Pages + Firebase.</footer>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 
-  </div><script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-auth.js";
-  import { getFirestore, collection, addDoc, doc, setDoc, query, orderBy, getDocs, serverTimestamp, where, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore.js";
-  import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.6.0/firebase-storage.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyAtfx_L-Nd3_1V-QRdQ1ywnt_Hzn0xcozA",
+      authDomain: "rifqymusic-cc30c.firebaseapp.com",
+      projectId: "rifqymusic-cc30c",
+      storageBucket: "rifqymusic-cc30c.firebasestorage.app",
+      messagingSenderId: "1081536375226",
+      appId: "1:1081536375226:web:3bc702ac2ca6e25debd583",
+      measurementId: "G-F86NRH3XKE"
+    };
 
-  // --- FIREBASE CONFIG HERE ---
-  const firebaseConfig = {
-    apiKey: "REPLACE_APIKEY",
-    authDomain: "REPLACE_AUTHDOMAIN",
-    projectId: "REPLACE_PROJECTID",
-    storageBucket: "REPLACE_STORAGEBUCKET",
-    messagingSenderId: "REPLACE_MSGID",
-    appId: "REPLACE_APPID"
-  };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  const storage = getStorage(app);
+    const loginBtn = document.getElementById("loginBtn");
+    const registerBtn = document.getElementById("registerBtn");
+    const msg = document.getElementById("msg");
 
-  // Helpers to render views
-  const mainArea = document.getElementById('mainArea');
-  const authArea = document.getElementById('authArea');
-
-  // --- VIEWS ---
-  function renderLogin() {
-    authArea.innerHTML = '';
-    mainArea.innerHTML = `
-      <div class="card">
-        <h3>Masuk atau Daftar</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-          <div style="flex:1;min-width:260px">
-            <input id="email" type="email" placeholder="Email" />
-            <input id="password" type="password" placeholder="Password" style="margin-top:8px" />
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <button class="btn" id="signInBtn">Masuk</button>
-              <button id="signUpBtn" style="background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px;border-radius:8px;color:var(--muted)">Daftar</button>
-            </div>
-            <div id="authStatus" class="muted" style="margin-top:8px"></div>
-          </div>
-          <div style="flex:1;min-width:260px" class="muted">
-            <strong>Keterangan:</strong>
-            <ul>
-              <li>Akun menggunakan Email & Password.</li>
-              <li>Data lagu disimpan di Firebase Storage & Firestore.</li>
-              <li>Setelah login kamu bisa membuat playlist sendiri dan menambahkan lagu.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('signUpBtn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value.trim();
-      const pw = document.getElementById('password').value;
-      const status = document.getElementById('authStatus');
-      if (!email || !pw) return status.textContent = 'Masukkan email & password.';
+    loginBtn.onclick = async () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
       try {
-        await createUserWithEmailAndPassword(auth, email, pw);
-        status.textContent = 'Daftar sukses — masuk otomatis.';
-      } catch (e) { status.textContent = 'Daftar gagal: ' + e.message; }
-    });
+        await signInWithEmailAndPassword(auth, email, password);
+        msg.textContent = "Berhasil login!";
+        window.location.href = "playlist.html";
+      } catch (e) {
+        msg.textContent = e.message;
+      }
+    };
 
-    document.getElementById('signInBtn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value.trim();
-      const pw = document.getElementById('password').value;
-      const status = document.getElementById('authStatus');
-      if (!email || !pw) return status.textContent = 'Masukkan email & password.';
+    registerBtn.onclick = async () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
       try {
-        await signInWithEmailAndPassword(auth, email, pw);
-      } catch (e) { status.textContent = 'Login gagal: ' + e.message; }
-    });
-  }
-
-  async function renderApp(user) {
-    authArea.innerHTML = `<div class="muted">Halo, ${escapeHtml(user.email || user.uid)} <button id=logoutBtn style='margin-left:8px' class='btn'>Keluar</button></div>`;
-    document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
-
-    mainArea.innerHTML = `
-      <div class="two">
-        <div class="card">
-          <h3>Unggah Lagu / Daftar Lagu</h3>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <input id="title" type="text" placeholder="Judul lagu (wajib)" />
-            <input id="artist" type="text" placeholder="Artis (opsional)" />
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <input id="file" type="file" accept="audio/*" />
-            <button class="btn" id="uploadBtn">Unggah</button>
-          </div>
-          <div id="status" class="muted" style="margin-top:8px"></div>
-
-          <div style="margin-top:14px">
-            <div style="display:flex;justify-content:space-between;align-items:center"><div class="muted">Daftar Lagu</div><div class="muted" id="songCount">—</div></div>
-            <div class="songs" id="songsList"></div>
-          </div>
-        </div>
-
-        <aside class="card">
-          <h3>Playlist</h3>
-          <div style="display:flex;gap:8px;margin-top:8px">
-            <input id="plName" type="text" placeholder="Nama playlist" />
-            <button class="btn" id="createPl">Buat</button>
-          </div>
-          <div class="playlists" id="playlistsList"></div>
-        </aside>
-      </div>
-
-      <div style="margin-top:12px" id="playerArea"></div>
-    `;
-
-    document.getElementById('uploadBtn').addEventListener('click', uploadSong);
-    document.getElementById('createPl').addEventListener('click', createPlaylist);
-
-    loadSongs();
-    loadPlaylists();
-  }
-
-  // --- Data functions ---
-  async function uploadSong() {
-    const fileEl = document.getElementById('file'); const title = document.getElementById('title').value.trim(); const artist = document.getElementById('artist').value.trim() || 'Unknown';
-    const status = document.getElementById('status');
-    if (!fileEl.files[0] || !title) return status.textContent = 'Pilih file dan isi judul.';
-    const file = fileEl.files[0];
-    const id = Date.now() + '-' + file.name.replace(/\s/g,'_');
-    const path = 'songs/' + id;
-    const storageRef = sRef(storage, path);
-    const uploadTask = uploadBytesResumable(storageRef, file);
-    status.textContent = 'Mengunggah... 0%';
-    uploadTask.on('state_changed', snap => { const pct = Math.round((snap.bytesTransferred/snap.totalBytes)*100); status.textContent = 'Mengunggah... ' + pct + '%'; }, e=>{ status.textContent = 'Upload gagal: '+e.message }, async ()=>{
-      const url = await getDownloadURL(uploadTask.snapshot.ref);
-      await addDoc(collection(db,'songs'), { title, artist, fileName: file.name, path, url, createdAt: serverTimestamp(), ownerUid: auth.currentUser.uid });
-      status.textContent = 'Upload selesai.'; fileEl.value=''; document.getElementById('title').value=''; document.getElementById('artist').value='';
-      loadSongs();
-    });
-  }
-
-  async function loadSongs() {
-    const q = query(collection(db,'songs'), orderBy('createdAt','desc'));
-    const snap = await getDocs(q);
-    const docs = []; snap.forEach(d=>docs.push({id:d.id, ...d.data()}));
-    renderSongs(docs);
-  }
-
-  function renderSongs(docs) {
-    const list = document.getElementById('songsList'); const count = document.getElementById('songCount');
-    list.innerHTML=''; count.textContent = docs.length + ' lagu';
-    const plSelect = buildPlaylistsSelect();
-    for (const s of docs) {
-      const el = document.createElement('div'); el.className='song';
-      el.innerHTML = `
-        <div style="width:44px;height:44px;border-radius:6px;background:rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)">${(s.title||'').slice(0,1).toUpperCase()}</div>
-        <div class="meta"><h4 title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</h4><p>${escapeHtml(s.artist||'Unknown')}</p></div>
-        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-          <div style="display:flex;gap:6px">
-            <button class="btn" data-url="${s.url}" onclick="(function(u){playUrl(u)})('${s.url}')">Play</button>
-            <a class="muted" href="${s.url}" download="${s.fileName}">Download</a>
-          </div>
-          <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
-            <select data-songid="${s.id}" class="plSelect">${plSelect}</select>
-            <button class="btn addToPl" data-songid="${s.id}">Tambah</button>
-          </div>
-        </div>
-      `;
-      list.appendChild(el);
-    }
-    // Attach add handlers
-    document.querySelectorAll('.addToPl').forEach(b=>b.addEventListener('click', async (ev)=>{
-      const songId = bDataset(ev.target,'songid');
-      const sel = ev.target.parentElement.querySelector('.plSelect');
-      const playlistId = sel.value; if (!playlistId) return alert('Pilih playlist dulu');
-      await addSongToPlaylist(playlistId, songId);
-      alert('Ditambahkan ke playlist');
-    }));
-  }
-
-  // Build options for playlist select (synchronously from cached playlists var)
-  let cachedPlaylists = [];
-  function buildPlaylistsSelect() {
-    if (!cachedPlaylists || cachedPlaylists.length===0) return '<option value="">Pilih...</option>';
-    return '<option value="">Pilih...</option>' + cachedPlaylists.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-  }
-
-  async function loadPlaylists() {
-    const q = query(collection(db,'playlists'), where('ownerUid','==', auth.currentUser.uid), orderBy('createdAt','desc'));
-    const snap = await getDocs(q);
-    const docs = []; snap.forEach(d=>docs.push({id:d.id, ...d.data()}));
-    cachedPlaylists = docs;
-    renderPlaylists(docs);
-  }
-
-  function renderPlaylists(docs) {
-    const wrap = document.getElementById('playlistsList'); wrap.innerHTML='';
-    if (docs.length===0) wrap.innerHTML = '<div class="muted">Belum ada playlist.</div>';
-    for (const p of docs) {
-      const el = document.createElement('div'); el.className='playlist';
-      el.innerHTML = `<div>${escapeHtml(p.name)}</div><div><button class="btn viewPl" data-id="${p.id}">Lihat</button></div>`;
-      wrap.appendChild(el);
-    }
-    document.querySelectorAll('.viewPl').forEach(b=>b.addEventListener('click', async ev=>{
-      const id = ev.target.getAttribute('data-id'); showPlaylist(id);
-    }));
-  }
-
-  async function createPlaylist() {
-    const name = document.getElementById('plName').value.trim(); if (!name) return alert('Isi nama playlist');
-    await addDoc(collection(db,'playlists'), { name, ownerUid: auth.currentUser.uid, createdAt: serverTimestamp() });
-    document.getElementById('plName').value=''; loadPlaylists();
-  }
-
-  async function addSongToPlaylist(playlistId, songId) {
-    await addDoc(collection(db, 'playlists', playlistId, 'items'), { songId, addedAt: serverTimestamp() });
-  }
-
-  async function showPlaylist(playlistId) {
-    const docRef = doc(db,'playlists',playlistId); const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return alert('Playlist tidak ditemukan');
-    const pl = { id: docSnap.id, ...docSnap.data() };
-    // fetch items
-    const itemsSnap = await getDocs(collection(db,'playlists',playlistId,'items'));
-    const songIds = []; itemsSnap.forEach(d=>songIds.push(d.data().songId));
-    // fetch song data
-    const songs = [];
-    for (const sid of songIds) {
-      const sdoc = await getDoc(doc(db,'songs',sid));
-      if (sdoc.exists()) songs.push({id:sdoc.id, ...sdoc.data()});
-    }
-    // render modal-like area
-    const playerArea = document.getElementById('playerArea');
-    playerArea.innerHTML = `<div class=\"card\"><h3>Playlist: ${escapeHtml(pl.name)}</h3><div class=\"songs\" id=\"plSongs\"></div></div>`;
-    const plSongs = document.getElementById('plSongs'); plSongs.innerHTML='';
-    if (songs.length===0) plSongs.innerHTML='<div class="muted">Playlist kosong.</div>';
-    for (const s of songs) {
-      const el = document.createElement('div'); el.className='song';
-      el.innerHTML = `
-        <div style=\"width:44px;height:44px;border-radius:6px;background:rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--muted)\">${(s.title||'').slice(0,1).toUpperCase()}</div>
-        <div class=\"meta\"><h4>${escapeHtml(s.title)}</h4><p>${escapeHtml(s.artist||'Unknown')}</p></div>
-        <div style=\"display:flex;flex-direction:column;gap:6px;align-items:flex-end\"> <button class=\"btn\" onclick=\"playUrl('${s.url.replace(/'/g, "\\'")}')\">Play</button> </div>
-      `;
-      plSongs.appendChild(el);
-    }
-  }
-
-  // Simple play function
-  function playUrl(url) { document.getElementById('playerArea').innerHTML = `<div class=\"card\"><audio controls autoplay src=\"${url}\">Browser tidak mendukung audio tag.</audio></div>`; }
-
-  // Utils
-  function escapeHtml(str='') { return String(str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function bDataset(evTarget, name) { return evTarget.dataset ? evTarget.dataset[name] : evTarget.getAttribute('data-' + name); }
-
-  // Auth state listener
-  onAuthStateChanged(auth, user => {
-    if (user) renderApp(user); else renderLogin();
-  });
-
-</script></body>
+        await createUserWithEmailAndPassword(auth, email, password);
+        msg.textContent = "Akun berhasil dibuat!";
+      } catch (e) {
+        msg.textContent = e.message;
+      }
+    };
+  </script>
+</body>
 </html>
