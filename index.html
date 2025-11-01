@@ -1,120 +1,62 @@
-// RifqyMusicApp.jsx // Single-file React component + Firebase Auth integration (modular SDK) // Tailwind CSS utility classes are used. Replace the FIREBASE_CONFIG placeholder // with your actual Firebase config (or set via environment variables in deployment).
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RifqyMusic - Login</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
 
-import React, { useEffect, useState, createContext, useContext } from "react"; import { initializeApp } from "firebase/app"; import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, } from "firebase/auth";
+  <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-96">
+    <h1 class="text-3xl font-bold mb-6 text-center">RifqyMusic 🎧</h1>
 
-// ---------------------------- // 1) Firebase config - REPLACE // ---------------------------- const FIREBASE_CONFIG = { apiKey: "REPLACE_WITH_YOUR_API_KEY", authDomain: "REPLACE_WITH_YOUR_AUTH_DOMAIN", projectId: "REPLACE_WITH_YOUR_PROJECT_ID", storageBucket: "REPLACE_WITH_YOUR_STORAGE_BUCKET", messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID", appId: "REPLACE_WITH_YOUR_APP_ID", };
+    <input id="email" type="email" placeholder="Email" class="w-full mb-3 p-3 rounded bg-gray-700 text-white">
+    <input id="password" type="password" placeholder="Kata sandi" class="w-full mb-4 p-3 rounded bg-gray-700 text-white">
 
-const app = initializeApp(FIREBASE_CONFIG); const auth = getAuth(app); const googleProvider = new GoogleAuthProvider();
+    <button id="loginBtn" class="w-full bg-green-500 hover:bg-green-600 p-3 rounded font-bold mb-3">Masuk</button>
 
-// ---------------------------- // 2) Auth context // ---------------------------- const AuthContext = createContext(); export function useAuth() { return useContext(AuthContext); }
+    <div class="text-center text-sm text-gray-400 mb-3">Atau</div>
 
-function AuthProvider({ children }) { const [user, setUser] = useState(null); const [loading, setLoading] = useState(true);
+    <button id="googleBtn" class="w-full bg-white text-gray-900 font-bold p-3 rounded mb-2">Masuk dengan Google</button>
+    <button class="w-full bg-gray-600 font-semibold p-3 rounded mb-2 opacity-60 cursor-not-allowed">Masuk dengan Apple</button>
+    <button class="w-full bg-gray-600 font-semibold p-3 rounded opacity-60 cursor-not-allowed">Masuk dengan Microsoft</button>
 
-useEffect(() => { const unsub = onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }); return unsub; }, []);
-
-const value = { user, loading }; return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>; }
-
-// ---------------------------- // 3) UI components // ---------------------------- function Logo() { return ( <div className="flex items-center gap-3"> <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-rose-500 rounded-xl flex items-center justify-center shadow-lg"> <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"> <path d="M12 3v18" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /> <circle cx="12" cy="8" r="2.2" fill="white" /> </svg> </div> <div> <h1 className="text-xl font-bold">RifqyMusic</h1> <p className="text-xs text-gray-400">Your personal music AI</p> </div> </div> ); }
-
-function AuthCard() { const [mode, setMode] = useState("login"); // or 'register' const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
-
-async function handleEmailLogin(e) { e.preventDefault(); setErr(""); setLoading(true); try { if (mode === "login") { await signInWithEmailAndPassword(auth, email, password); } else { await createUserWithEmailAndPassword(auth, email, password); } } catch (error) { setErr(error.message); } setLoading(false); }
-
-async function handleGoogle() { try { setErr(""); await signInWithPopup(auth, googleProvider); } catch (error) { setErr(error.message); } }
-
-return ( <div className="max-w-md w-full bg-slate-900/70 backdrop-blur rounded-2xl p-8 shadow-2xl border border-slate-800"> <div className="mb-6"> <Logo /> </div>
-
-<h2 className="text-2xl font-semibold mb-2">{mode === "login" ? "Welcome back" : "Create your account"}</h2>
-  <p className="text-sm text-gray-400 mb-6">{mode === "login" ? "Sign in to continue to RifqyMusic" : "Sign up and start your music journey"}</p>
-
-  <form onSubmit={handleEmailLogin} className="space-y-4">
-    <div>
-      <label className="text-xs text-gray-300">Email</label>
-      <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required className="mt-1 w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 focus:outline-none" />
-    </div>
-    <div>
-      <label className="text-xs text-gray-300">Password</label>
-      <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" required className="mt-1 w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-700 focus:outline-none" />
-    </div>
-
-    {err && <div className="text-sm text-rose-400">{err}</div>}
-
-    <div className="flex items-center justify-between">
-      <button disabled={loading} className="px-5 py-3 rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-70 text-white font-semibold">
-        {mode === "login" ? (loading ? "Signing in..." : "Sign in") : (loading ? "Creating..." : "Create account")}
-      </button>
-
-      <button type="button" onClick={() => setMode(mode === "login" ? "register" : "login") } className="text-xs text-gray-300 underline">
-        {mode === "login" ? "Create an account" : "Have an account? Sign in"}
-      </button>
-    </div>
-  </form>
-
-  <div className="my-4 flex items-center gap-3">
-    <div className="h-px bg-slate-700 flex-1"></div>
-    <div className="text-xs text-gray-500">or continue with</div>
-    <div className="h-px bg-slate-700 flex-1"></div>
+    <p class="text-sm text-gray-400 mt-4 text-center">
+      Belum punya akun? <a href="#" class="text-green-400">Daftar</a>
+    </p>
   </div>
 
-  <div className="grid grid-cols-2 gap-3">
-    <button onClick={handleGoogle} className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center gap-2">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12.3c0-.6-.1-1.2-.2-1.8H12v3.3h5.6c-.2 1-.8 1.9-1.7 2.5v2h2.8c1.6-1.5 2.5-3.7 2.5-6z" fill="white"/></svg>
-      Google
-    </button>
-    <button className="px-3 py-2 rounded-lg bg-white/5 text-white flex items-center justify-center gap-2">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v6l4-2-4 2v6" stroke="white" strokeWidth="1.5"/></svg>
-      Demo
-    </button>
-  </div>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
 
-  <p className="text-xs text-gray-500 mt-4">By continuing you agree to our <span className="underline">Terms</span> & <span className="underline">Privacy</span>.</p>
-</div>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAtfx_L-Nd3_1V-QRdQ1ywnt_Hzn0xcozA",
+      authDomain: "rifqymusic-cc30c.firebaseapp.com",
+      projectId: "rifqymusic-cc30c",
+      storageBucket: "rifqymusic-cc30c.firebasestorage.app",
+      messagingSenderId: "1081536375226",
+      appId: "1:1081536375226:web:3bc702ac2ca6e25debd583",
+      measurementId: "G-F86NRH3XKE"
+    };
 
-); }
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
 
-function Header({ onSignOut }) { const { user } = useAuth(); return ( <header className="w-full flex items-center justify-between py-4 px-6 bg-gradient-to-r from-slate-950/70 to-slate-900/60 backdrop-blur sticky top-0 z-10 border-b border-slate-800"> <div className="flex items-center gap-6"> <Logo /> <nav className="hidden md:flex gap-4 text-sm text-gray-300"> <a className="hover:underline">Home</a> <a className="hover:underline">Explore</a> <a className="hover:underline">Library</a> </nav> </div>
+    const googleBtn = document.getElementById('googleBtn');
+    googleBtn.addEventListener('click', async () => {
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        alert(`Selamat datang, ${user.displayName}!`);
+        window.location.href = "home.html";
+      } catch (error) {
+        alert("Gagal login: " + error.message);
+      }
+    });
+  </script>
 
-<div className="flex items-center gap-4">
-    <div className="text-sm text-gray-300">{user?.email}</div>
-    <button onClick={onSignOut} className="px-3 py-2 bg-rose-500 rounded-lg text-white">Sign out</button>
-  </div>
-</header>
-
-); }
-
-function Dashboard() { return ( <main className="p-8"> <div className="max-w-6xl mx-auto"> <section className="mb-8"> <div className="rounded-2xl bg-gradient-to-r from-indigo-700 to-rose-500 p-8 text-white shadow-xl"> <h2 className="text-3xl font-bold mb-2">Selamat datang di RifqyMusic</h2> <p className="text-sm opacity-90">Tempatmu menjelajahi lagu, playlist, dan AI music assistant.</p> </div> </section>
-
-<section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div className="p-6 rounded-xl bg-slate-800 border border-slate-700">
-        <h3 className="font-semibold mb-2">Now Playing</h3>
-        <div className="text-sm text-gray-400">Belum ada lagu yang diputar.</div>
-      </div>
-      <div className="p-6 rounded-xl bg-slate-800 border border-slate-700">
-        <h3 className="font-semibold mb-2">Recommended</h3>
-        <div className="text-sm text-gray-400">Berdasarkan aktivitasmu.</div>
-      </div>
-      <div className="p-6 rounded-xl bg-slate-800 border border-slate-700">
-        <h3 className="font-semibold mb-2">Your Library</h3>
-        <div className="text-sm text-gray-400">Playlist, likes, dan upload.</div>
-      </div>
-    </section>
-  </div>
-</main>
-
-); }
-
-// ---------------------------- // 4) Root App // ---------------------------- export default function RifqyMusicApp() { const [uiState, setUiState] = useState({});
-
-return ( <AuthProvider> <AppShell /> </AuthProvider> ); }
-
-function AppShell() { const { user, loading } = useAuth(); const [error, setError] = useState(null);
-
-async function logout() { try { await signOut(auth); } catch (e) { setError(e.message); } }
-
-if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-
-if (!user) return ( <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center p-6"> <AuthCard /> </div> );
-
-return ( <div className="min-h-screen bg-slate-900 text-slate-100"> <Header onSignOut={logout} /> <Dashboard /> </div> ); }
-
-// ---------------------------- // USAGE NOTES: // 1) Install tailwind in your React app or include Tailwind CDN for quick preview. // 2) Replace FIREBASE_CONFIG with your Firebase project's config. // 3) This file is a single-file demo. For production, split into components and secure config via env vars. // 4) If you used a different Firebase setup earlier (in conversation), paste that config into FIREBASE_CONFIG. // ----------------------------
+</body>
+</html>
