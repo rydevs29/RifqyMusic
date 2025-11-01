@@ -5,25 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RifqyMusic - Login</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .logo-btn img { width: 20px; height: 20px; margin-right: 8px; }
+    .logo-btn { display: flex; align-items: center; justify-content: center; }
+  </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
+<body class="bg-gradient-to-br from-gray-900 to-gray-800 text-white flex items-center justify-center h-screen">
 
-  <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl w-96">
-    <h1 class="text-3xl font-bold mb-6 text-center">RifqyMusic 🎧</h1>
+  <div class="bg-gray-850 p-8 rounded-2xl shadow-2xl w-96 text-center border border-gray-700">
+    <h1 class="text-3xl font-bold mb-6">🎧 RifqyMusic</h1>
+    <p class="text-gray-400 mb-8">Nikmati musik terbaikmu di mana saja!</p>
 
-    <input id="email" type="email" placeholder="Email" class="w-full mb-3 p-3 rounded bg-gray-700 text-white">
-    <input id="password" type="password" placeholder="Kata sandi" class="w-full mb-4 p-3 rounded bg-gray-700 text-white">
+    <div class="space-y-3 mb-5">
+      <input id="email" type="email" placeholder="Email" class="w-full p-3 rounded bg-gray-700 text-white focus:ring focus:ring-green-400 outline-none">
+      <input id="password" type="password" placeholder="Kata sandi" class="w-full p-3 rounded bg-gray-700 text-white focus:ring focus:ring-green-400 outline-none">
+      <button id="loginBtn" class="w-full bg-green-500 hover:bg-green-600 p-3 rounded font-bold transition">Masuk</button>
+    </div>
 
-    <button id="loginBtn" class="w-full bg-green-500 hover:bg-green-600 p-3 rounded font-bold mb-3">Masuk</button>
+    <p class="text-gray-400 mb-3 text-sm">Atau masuk dengan</p>
 
-    <div class="text-center text-sm text-gray-400 mb-3">Atau</div>
+    <div class="space-y-3">
+      <button id="googleBtn" class="logo-btn w-full bg-white text-gray-900 font-semibold p-3 rounded hover:bg-gray-200 transition">
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google"> Masuk dengan Google
+      </button>
+      <button class="logo-btn w-full bg-gray-700 p-3 rounded opacity-60 cursor-not-allowed">
+        <img src="https://www.svgrepo.com/show/303128/apple-logo.svg" alt="Apple"> Masuk dengan Apple
+      </button>
+      <button class="logo-btn w-full bg-gray-700 p-3 rounded opacity-60 cursor-not-allowed">
+        <img src="https://www.svgrepo.com/show/475661/microsoft-color.svg" alt="Microsoft"> Masuk dengan Microsoft
+      </button>
+    </div>
 
-    <button id="googleBtn" class="w-full bg-white text-gray-900 font-bold p-3 rounded mb-2">Masuk dengan Google</button>
-    <button class="w-full bg-gray-600 font-semibold p-3 rounded mb-2 opacity-60 cursor-not-allowed">Masuk dengan Apple</button>
-    <button class="w-full bg-gray-600 font-semibold p-3 rounded opacity-60 cursor-not-allowed">Masuk dengan Microsoft</button>
-
-    <p class="text-sm text-gray-400 mt-4 text-center">
-      Belum punya akun? <a href="#" class="text-green-400">Daftar</a>
+    <p class="text-sm text-gray-400 mt-6">
+      Belum punya akun? <a href="#" class="text-green-400 hover:underline">Daftar</a>
     </p>
   </div>
 
@@ -45,8 +59,7 @@
     const auth = getAuth(app);
     const provider = new GoogleAuthProvider();
 
-    const googleBtn = document.getElementById('googleBtn');
-    googleBtn.addEventListener('click', async () => {
+    document.getElementById('googleBtn').addEventListener('click', async () => {
       try {
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
