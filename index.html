@@ -24,7 +24,6 @@
         </div>
 
         <p id="loading-text" style="text-align:center; color:#666; margin-top:20px; font-size:12px;">Memuat Library...</p>
-
         <div id="home-list" class="song-list"></div>
     </div>
 
@@ -126,7 +125,6 @@
                     <span class="slider round"></span>
                 </label>
             </div>
-
             <div class="fx-item">
                 <span class="fx-text">Mono Audio</span>
                 <label class="switch">
@@ -137,7 +135,11 @@
         </div>
 
         <div class="eq-section">
-            <div class="eq-title">5-BAND EQUALIZER</div>
+            <div class="eq-header-wrapper">
+                <div class="eq-title">5-BAND EQUALIZER</div>
+                <button class="btn-reset" onclick="resetEQ()">RESET</button>
+            </div>
+            
             <div class="eq-container">
                 <div class="eq-band">
                     <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(0, this.value)">
@@ -165,4 +167,5 @@
 
     <script src="script.js"></script>
 </body>
-</html>
+                </html>
+                                                                                                                          
