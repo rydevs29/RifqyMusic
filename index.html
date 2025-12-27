@@ -1,117 +1,85 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RifqyMusic - Login</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <style>
-    .logo-btn img { width: 20px; height: 20px; margin-right: 8px; }
-    .logo-btn { display: flex; align-items: center; justify-content: center; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>RifqyMusic</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gradient-to-br from-gray-900 to-gray-800 text-white flex items-center justify-center h-screen">
+<body>
 
-  <div class="bg-gray-850 p-8 rounded-2xl shadow-2xl w-96 text-center border border-gray-700">
-    <h1 class="text-3xl font-bold mb-6">RifqyMusic</h1>
-    <p class="text-gray-400 mb-8">Login untuk melanjutkan</p>
-
-    <div id="login-section">
-      <input id="email" type="email" placeholder="Email" class="w-full p-3 mb-3 rounded bg-gray-700 text-white focus:ring focus:ring-green-400 outline-none">
-      <input id="password" type="password" placeholder="Kata sandi" class="w-full p-3 mb-3 rounded bg-gray-700 text-white focus:ring focus:ring-green-400 outline-none">
-      <button id="loginBtn" class="w-full bg-green-500 hover:bg-green-600 p-3 rounded font-bold transition">Masuk</button>
-
-      <p class="text-gray-400 mt-3 mb-2 text-sm">Atau</p>
-      <button id="googleBtn" class="logo-btn w-full bg-white text-gray-900 font-semibold p-3 rounded hover:bg-gray-200 transition">
-        <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google"> Masuk dengan Google
-      </button>
-
-      <p class="text-sm text-gray-400 mt-6">
-        Belum punya akun? <a href="#" id="showRegister" class="text-green-400 hover:underline">Daftar</a>
-      </p>
+    <div id="view-home" class="view active">
+        <div class="top-bar">
+            <div class="brand-logo">RifqyMusic</div>
+            <div class="search-box">
+                <span class="material-icons-round search-icon">search</span>
+                <input type="text" id="search-input" placeholder="Cari lagu..." oninput="handleSearch()">
+            </div>
+        </div>
+        <h3 class="section-title">Pilihan Cepat (Lossless)</h3>
+        <p id="loading-text" style="text-align:center; color:#666; margin-top:20px;">Memuat lagu...</p>
+        <div class="list-container" id="home-list"></div>
     </div>
 
-    <div id="register-section" class="hidden">
-      <input id="regEmail" type="email" placeholder="Email" class="w-full p-3 mb-3 rounded bg-gray-700 text-white focus:ring focus:ring-green-400 outline-none">
-      <input id="regPassword" type="password" placeholder="Kata sandi" class="w-full p-3 mb-3 rounded bg-gray-700 text-white focus:ring focus:ring-green-400 outline-none">
-      <button id="registerBtn" class="w-full bg-green-500 hover:bg-green-600 p-3 rounded font-bold transition">Daftar</button>
-
-      <p class="text-sm text-gray-400 mt-6">
-        Sudah punya akun? <a href="#" id="showLogin" class="text-green-400 hover:underline">Login</a>
-      </p>
+    <div id="view-saved" class="view">
+        <div class="top-bar">
+            <div class="brand-logo">Disimpan</div>
+        </div>
+        <h3 class="section-title">Playlist Favorit</h3>
+        <div class="list-container" id="saved-list">
+            <p style="text-align:center; color:#666; margin-top:20px;">Belum ada lagu disimpan.</p>
+        </div>
     </div>
-  </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-    import { 
-      getAuth, 
-      signInWithEmailAndPassword, 
-      createUserWithEmailAndPassword, 
-      signInWithPopup, 
-      GoogleAuthProvider 
-    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+    <div id="mini-player" class="mini-player hidden" onclick="maximizePlayer()">
+        <div class="mini-info">
+            <p id="mini-title">Judul Lagu</p>
+            <p id="mini-artist">RifqyMusic</p>
+        </div>
+        <button class="btn-mini" onclick="event.stopPropagation(); togglePlay()">
+            <span class="material-icons-round" id="mini-play-icon">play_arrow</span>
+        </button>
+    </div>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyAtfx_L-Nd3_1V-QRdQ1ywnt_Hzn0xcozA",
-      authDomain: "rifqymusic-cc30c.firebaseapp.com",
-      projectId: "rifqymusic-cc30c",
-      storageBucket: "rifqymusic-cc30c.firebasestorage.app",
-      messagingSenderId: "1081536375226",
-      appId: "1:1081536375226:web:3bc702ac2ca6e25debd583",
-      measurementId: "G-F86NRH3XKE"
-    };
+    <div class="bottom-nav">
+        <div class="nav-item active" id="nav-home" onclick="switchTab('home')">
+            <span class="material-icons-round nav-icon">home_filled</span>
+            <span class="nav-text">Beranda</span>
+        </div>
+        <div class="nav-item" id="nav-saved" onclick="switchTab('saved')">
+            <span class="material-icons-round nav-icon">bookmark</span>
+            <span class="nav-text">Disimpan</span>
+        </div>
+    </div>
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
+    <div id="view-player" class="player-overlay">
+        <div class="player-header">
+            <button class="btn-icon" onclick="minimizePlayer()"><span class="material-icons-round">keyboard_arrow_down</span></button>
+            <span>MEMUTAR</span>
+            <button class="btn-icon"><span class="material-icons-round">more_vert</span></button>
+        </div>
+        <div class="player-body">
+            <div class="album-art-box"><span class="material-icons-round big-icon">audiotrack</span></div>
+            <div class="track-info-full">
+                <h2 id="full-title">Judul Lagu</h2>
+                <p id="full-artist">RifqyMusic</p>
+            </div>
+            <div class="progress-area">
+                <input type="range" id="progress-bar" value="0" min="0" max="100">
+                <div class="time-labels"><span id="current-time">0:00</span><span id="duration">0:00</span></div>
+            </div>
+            <div class="controls-main">
+                <button class="btn-ctrl small" onclick="toggleShuffle()" id="shuffle-btn"><span class="material-icons-round">shuffle</span></button>
+                <button class="btn-ctrl" onclick="playPrev()"><span class="material-icons-round">skip_previous</span></button>
+                <button class="btn-play-big" onclick="togglePlay()"><span class="material-icons-round" id="full-play-icon">play_arrow</span></button>
+                <button class="btn-ctrl" onclick="playNext()"><span class="material-icons-round">skip_next</span></button>
+                <button class="btn-ctrl small" onclick="toggleRepeat()" id="repeat-btn"><span class="material-icons-round">repeat</span></button>
+            </div>
+        </div>
+    </div>
 
-    // login
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-      const email = document.getElementById('email').value;
-      const pass = document.getElementById('password').value;
-      try {
-        await signInWithEmailAndPassword(auth, email, pass);
-        window.location.href = "home.html";
-      } catch (error) {
-        alert("Gagal login: " + error.message);
-      }
-    });
-
-    // daftar
-    document.getElementById('registerBtn').addEventListener('click', async () => {
-      const email = document.getElementById('regEmail').value;
-      const pass = document.getElementById('regPassword').value;
-      try {
-        await createUserWithEmailAndPassword(auth, email, pass);
-        alert("Pendaftaran berhasil!");
-        window.location.href = "home.html";
-      } catch (error) {
-        alert("Gagal daftar: " + error.message);
-      }
-    });
-
-    // google
-    document.getElementById('googleBtn').addEventListener('click', async () => {
-      try {
-        const result = await signInWithPopup(auth, provider);
-        alert(`Selamat datang, ${result.user.displayName}!`);
-        window.location.href = "home.html";
-      } catch (error) {
-        alert("Gagal login Google: " + error.message);
-      }
-    });
-
-    // toggle UI
-    document.getElementById('showRegister').onclick = () => {
-      document.getElementById('login-section').classList.add('hidden');
-      document.getElementById('register-section').classList.remove('hidden');
-    };
-    document.getElementById('showLogin').onclick = () => {
-      document.getElementById('register-section').classList.add('hidden');
-      document.getElementById('login-section').classList.remove('hidden');
-    };
-  </script>
-
+    <script src="script.js"></script>
 </body>
 </html>
