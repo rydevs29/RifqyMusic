@@ -2,81 +2,145 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>RifqyMusic</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RifqyMusic Premium</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div id="view-home" class="view active">
         <div class="top-bar">
-            <div class="brand-logo">RifqyMusic</div>
-            <div class="search-box">
-                <span class="material-icons-round search-icon">search</span>
-                <input type="text" id="search-input" placeholder="Cari lagu..." oninput="handleSearch()">
-            </div>
+            <div class="brand-logo">RifqyMusic<span style="color:#00ff00;">.</span></div>
+            <button class="btn-icon"><span class="material-icons-round">settings</span></button>
         </div>
-        <h3 class="section-title">Pilihan Cepat (Lossless)</h3>
-        <p id="loading-text" style="text-align:center; color:#666; margin-top:20px;">Memuat lagu...</p>
-        <div class="list-container" id="home-list"></div>
+        
+        <div class="search-box">
+            <span class="material-icons-round" style="color:#666;">search</span>
+            <input type="text" id="search-input" placeholder="Cari lagu..." oninput="handleSearch()">
+        </div>
+
+        <p id="loading-text" style="text-align:center; color:#666; margin-top:20px; font-size:12px;">Memuat Library...</p>
+
+        <div id="home-list" class="song-list"></div>
     </div>
 
     <div id="view-saved" class="view">
         <div class="top-bar">
-            <div class="brand-logo">Disimpan</div>
+            <div class="brand-logo">Tersimpan</div>
         </div>
-        <h3 class="section-title">Playlist Favorit</h3>
-        <div class="list-container" id="saved-list">
-            <p style="text-align:center; color:#666; margin-top:20px;">Belum ada lagu disimpan.</p>
+        <div id="saved-list" class="song-list"></div>
+    </div>
+
+    <div class="bottom-nav">
+        <div id="nav-home" class="nav-item active" onclick="switchTab('home')">
+            <span class="material-icons-round nav-icon">home_filled</span>
+            <span class="nav-text">Beranda</span>
+        </div>
+        <div id="nav-saved" class="nav-item" onclick="switchTab('saved')">
+            <span class="material-icons-round nav-icon">bookmark</span>
+            <span class="nav-text">Tersimpan</span>
         </div>
     </div>
 
     <div id="mini-player" class="mini-player hidden" onclick="maximizePlayer()">
         <div class="mini-info">
-            <p id="mini-title">Judul Lagu</p>
+            <h4 id="mini-title">Judul Lagu</h4>
             <p id="mini-artist">RifqyMusic</p>
         </div>
-        <button class="btn-mini" onclick="event.stopPropagation(); togglePlay()">
-            <span class="material-icons-round" id="mini-play-icon">play_arrow</span>
-        </button>
-    </div>
-
-    <div class="bottom-nav">
-        <div class="nav-item active" id="nav-home" onclick="switchTab('home')">
-            <span class="material-icons-round nav-icon">home_filled</span>
-            <span class="nav-text">Beranda</span>
+        <div class="mini-controls">
+            <button class="btn-icon" onclick="event.stopPropagation(); togglePlay()">
+                <span id="mini-play-icon" class="material-icons-round">play_arrow</span>
+            </button>
         </div>
-        <div class="nav-item" id="nav-saved" onclick="switchTab('saved')">
-            <span class="material-icons-round nav-icon">bookmark</span>
-            <span class="nav-text">Disimpan</span>
+        <div style="position:absolute; bottom:0; left:0; height:2px; background:#333; width:100%; overflow:hidden; border-radius:0 0 8px 8px;">
+            <div id="mini-progress" style="height:100%; background:#00ff00; width:0%;"></div>
         </div>
     </div>
 
     <div id="view-player" class="player-overlay">
         <div class="player-header">
-            <button class="btn-icon" onclick="minimizePlayer()"><span class="material-icons-round">keyboard_arrow_down</span></button>
-            <span>MEMUTAR</span>
-            <button class="btn-icon"><span class="material-icons-round">more_vert</span></button>
+            <button class="btn-icon" onclick="minimizePlayer()">
+                <span class="material-icons-round">keyboard_arrow_down</span>
+            </button>
+            <span>Now Playing</span>
+            <button class="btn-icon" onclick="openSettings()">
+                <span class="material-icons-round">more_vert</span>
+            </button>
         </div>
-        <div class="player-body">
-            <div class="album-art-box"><span class="material-icons-round big-icon">audiotrack</span></div>
-            <div class="track-info-full">
-                <h2 id="full-title">Judul Lagu</h2>
-                <p id="full-artist">RifqyMusic</p>
-            </div>
+
+        <div class="player-img-box">
+            <img src="" alt="Cover" id="full-cover" onerror="this.src='https://img.icons8.com/material-rounded/128/333333/musical-notes.png'">
+        </div>
+
+        <div class="player-info">
+            <h2 id="full-title">Judul Lagu</h2>
+            <p id="full-artist">RifqyMusic</p>
+        </div>
+
+        <div class="player-controls">
             <div class="progress-area">
+                <span id="current-time">0:00</span>
                 <input type="range" id="progress-bar" value="0" min="0" max="100">
-                <div class="time-labels"><span id="current-time">0:00</span><span id="duration">0:00</span></div>
+                <span id="duration">0:00</span>
             </div>
-            <div class="controls-main">
-                <button class="btn-ctrl small" onclick="toggleShuffle()" id="shuffle-btn"><span class="material-icons-round">shuffle</span></button>
-                <button class="btn-ctrl" onclick="playPrev()"><span class="material-icons-round">skip_previous</span></button>
-                <button class="btn-play-big" onclick="togglePlay()"><span class="material-icons-round" id="full-play-icon">play_arrow</span></button>
-                <button class="btn-ctrl" onclick="playNext()"><span class="material-icons-round">skip_next</span></button>
-                <button class="btn-ctrl small" onclick="toggleRepeat()" id="repeat-btn"><span class="material-icons-round">repeat</span></button>
+
+            <div class="main-controls">
+                <button class="btn-icon" id="shuffle-btn" onclick="toggleShuffle()">
+                    <span class="material-icons-round">shuffle</span>
+                </button>
+                <button class="btn-icon large" onclick="playPrev()">
+                    <span class="material-icons-round">skip_previous</span>
+                </button>
+                <button class="btn-play-large" onclick="togglePlay()">
+                    <span id="full-play-icon" class="material-icons-round">play_arrow</span>
+                </button>
+                <button class="btn-icon large" onclick="playNext()">
+                    <span class="material-icons-round">skip_next</span>
+                </button>
+                <button class="btn-icon" id="repeat-btn" onclick="toggleRepeat()">
+                    <span class="material-icons-round">repeat</span>
+                </button>
             </div>
+        </div>
+    </div>
+
+    <div id="settings-overlay" class="settings-overlay" onclick="closeSettings()"></div>
+    <div id="settings-modal" class="settings-modal">
+        <div class="settings-header">
+            <h3>Audio Master FX</h3>
+            <span class="material-icons-round" onclick="closeSettings()" style="cursor:pointer;">close</span>
+        </div>
+        
+        <div class="fx-row">
+            <div class="fx-item">
+                <span>3D Surround</span>
+                <label class="switch">
+                    <input type="checkbox" id="btn-3d" onchange="toggle3D()">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="fx-item">
+                <span>Mono Audio</span>
+                <label class="switch">
+                    <input type="checkbox" id="btn-mono" onchange="toggleMono()">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </div>
+
+        <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
+
+        <div class="eq-label">
+            <span>Bass</span><span>Low</span><span>Mid</span><span>High</span><span>Treb</span>
+        </div>
+        <div class="eq-container">
+            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(0, this.value)">
+            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(1, this.value)">
+            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(2, this.value)">
+            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(3, this.value)">
+            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(4, this.value)">
         </div>
     </div>
 
