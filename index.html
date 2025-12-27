@@ -13,7 +13,9 @@
     <div id="view-home" class="view active">
         <div class="top-bar">
             <div class="brand-logo">RifqyMusic<span style="color:#00ff00;">.</span></div>
-            <button class="btn-icon"><span class="material-icons-round">settings</span></button>
+            <button class="btn-icon" onclick="openSettings()">
+                <span class="material-icons-round">settings</span>
+            </button>
         </div>
         
         <div class="search-box">
@@ -107,22 +109,26 @@
     </div>
 
     <div id="settings-overlay" class="settings-overlay" onclick="closeSettings()"></div>
+
     <div id="settings-modal" class="settings-modal">
         <div class="settings-header">
             <h3>Audio Master FX</h3>
-            <span class="material-icons-round" onclick="closeSettings()" style="cursor:pointer;">close</span>
+            <button class="btn-close" onclick="closeSettings()">
+                <span class="material-icons-round">close</span>
+            </button>
         </div>
         
         <div class="fx-row">
             <div class="fx-item">
-                <span>3D Surround</span>
+                <span class="fx-text">3D Surround</span>
                 <label class="switch">
                     <input type="checkbox" id="btn-3d" onchange="toggle3D()">
                     <span class="slider round"></span>
                 </label>
             </div>
+
             <div class="fx-item">
-                <span>Mono Audio</span>
+                <span class="fx-text">Mono Audio</span>
                 <label class="switch">
                     <input type="checkbox" id="btn-mono" onchange="toggleMono()">
                     <span class="slider round"></span>
@@ -130,17 +136,30 @@
             </div>
         </div>
 
-        <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
-
-        <div class="eq-label">
-            <span>Bass</span><span>Low</span><span>Mid</span><span>High</span><span>Treb</span>
-        </div>
-        <div class="eq-container">
-            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(0, this.value)">
-            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(1, this.value)">
-            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(2, this.value)">
-            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(3, this.value)">
-            <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(4, this.value)">
+        <div class="eq-section">
+            <div class="eq-title">5-BAND EQUALIZER</div>
+            <div class="eq-container">
+                <div class="eq-band">
+                    <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(0, this.value)">
+                    <span class="eq-freq">BASS</span>
+                </div>
+                <div class="eq-band">
+                    <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(1, this.value)">
+                    <span class="eq-freq">LOW</span>
+                </div>
+                <div class="eq-band">
+                    <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(2, this.value)">
+                    <span class="eq-freq">MID</span>
+                </div>
+                <div class="eq-band">
+                    <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(3, this.value)">
+                    <span class="eq-freq">HIGH</span>
+                </div>
+                <div class="eq-band">
+                    <input type="range" class="eq-slider" min="-12" max="12" value="0" oninput="updateEQ(4, this.value)">
+                    <span class="eq-freq">TREB</span>
+                </div>
+            </div>
         </div>
     </div>
 
