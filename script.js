@@ -1,6 +1,6 @@
 const CONFIG = {
-    user: 'rifqydev235',
-    repo: 'RifqyMusic-Backup',
+    user: 'rydevs29',
+    repo: 'RifqyMusic',
     basePath: 'songs',
     // Folder: lossless (untuk mp3/flac), covers (untuk gambar)
     folders: ['lossless'] 
