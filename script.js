@@ -1,6 +1,6 @@
 const CONFIG = {
-    user: 'rifqydev235',
-    repo: 'RifqyMusic-Backup',
+    user: 'rydevs29',
+    repo: 'RifqyMusic',
     basePath: 'songs',
     folders: ['lossless'] 
 };
