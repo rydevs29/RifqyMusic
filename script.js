@@ -2,7 +2,7 @@ const CONFIG = {
     user: 'rydevs29',
     repo: 'RifqyMusic',
     basePath: 'songs',
-    folders: ['lossless'] 
+    folders: ['lossless', 'med', 'low'] // Memantau semua folder sekaligus
 };
 
 // --- ULTIMATE AUDIO ENGINE (WEB AUDIO API) ---
@@ -17,7 +17,7 @@ let analyzer, dataArray, canvas, canvasCtx; // Visualizer
 // Status FX & App
 let is3D = false;
 let isMono = false;
-let currentQuality = 'Hi-Fi'; // Default: Hi-Fi (Folder 'lossless'/'high')
+let currentQuality = 'Hi-Fi'; // Default awal (nanti menyesuaikan jenis file)
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous"; 
@@ -42,7 +42,7 @@ let currentIndex = 0;
 let isShuffle = false;
 let isRepeat = false;
 
-// --- INITIALIZATION ---
+// --- INITIALIZATION (MULTI FOLDER SCAN) ---
 async function init() {
     try {
         const fetchPromises = CONFIG.folders.map(async folder => {
@@ -50,25 +50,42 @@ async function init() {
             const res = await fetch(url);
             if (!res.ok) return [];
             const files = await res.json();
-            return Array.isArray(files) ? files.map(f => ({ ...f, folderPath: `${CONFIG.basePath}/${folder}` })) : [];
+            // Tandai lagu ini asalnya dari folder mana untuk fallback
+            return Array.isArray(files) ? files.map(f => ({ 
+                name: f.name, 
+                originalFolder: folder,
+                folderPath: `${CONFIG.basePath}/${folder}`
+            })) : [];
         });
 
         const results = await Promise.all(fetchPromises);
-        allSongs = results.flat().filter(f => f.name.toLowerCase().endsWith('.flac') || f.name.toLowerCase().endsWith('.mp3'));
+        const rawSongs = results.flat().filter(f => f.name.toLowerCase().endsWith('.flac') || f.name.toLowerCase().endsWith('.mp3'));
+
+        // Hapus duplikat (Priority: lossless > med > low)
+        const uniqueSongs = [];
+        const seenNames = new Set();
+        for (const s of rawSongs) {
+            if (!seenNames.has(s.name)) {
+                seenNames.add(s.name);
+                uniqueSongs.push(s);
+            }
+        }
+        
+        allSongs = uniqueSongs;
 
         if (allSongs.length > 0) {
             document.getElementById('loading-text').style.display = 'none';
             renderHomeList(allSongs);
             renderSavedList();
         } else {
-            document.getElementById('loading-text').innerText = "Tidak ada lagu.";
+            document.getElementById('loading-text').innerText = "Library Kosong (Cek folder GitHub).";
         }
     } catch (e) {
         document.getElementById('loading-text').innerText = "Error: " + e.message;
     }
 }
 
-// --- SETUP AUDIO ENGINE CANGGIH (UPDATED) ---
+// --- SETUP AUDIO ENGINE CANGGIH ---
 function initAudioEngine() {
     if (audioCtx) return; 
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -93,6 +110,7 @@ function initAudioEngine() {
     reverbGainNode = audioCtx.createGain();
     reverbGainNode.gain.value = 0; 
 
+    // Impulse Response (Artificial Hall)
     const duration = 2;
     const length = audioCtx.sampleRate * duration;
     const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
@@ -103,21 +121,20 @@ function initAudioEngine() {
     }
     reverbNode.buffer = impulse;
 
-    // 3. SETUP VOLUME BOOST (NEW)
+    // 3. SETUP VOLUME BOOST
     boosterNode = audioCtx.createGain();
-    boosterNode.gain.value = 1; // Default 100%
+    boosterNode.gain.value = 1; 
 
-    // 4. SETUP ANALYZER (VISUALIZER) (NEW)
+    // 4. SETUP ANALYZER (VISUALIZER)
     analyzer = audioCtx.createAnalyser();
-    analyzer.fftSize = 64; // Jumlah batang visualizer
-    const bufferLength = analyzer.frequencyBinCount;
-    dataArray = new Uint8Array(bufferLength);
+    analyzer.fftSize = 64; 
+    dataArray = new Uint8Array(analyzer.frequencyBinCount);
 
     // 5. SETUP MASTER & ROUTING
     monoMergerNode = audioCtx.createChannelMerger(1); 
     masterGainNode = audioCtx.createGain(); 
 
-    // Rangkai Kabel Audio:
+    // Routing: Source -> EQ -> [Reverb + Booster] -> Master -> [Visualizer + Speaker]
     eqOutput.connect(boosterNode);
     eqOutput.connect(reverbNode);
     reverbNode.connect(reverbGainNode);
@@ -140,7 +157,7 @@ function connectFinalOutput() {
     }
 }
 
-// --- VISUALIZER ENGINE (NEW) ---
+// --- VISUALIZER ENGINE ---
 function initVisualizerCanvas() {
     canvas = document.getElementById('visualizer');
     if(!canvas) return; 
@@ -159,7 +176,8 @@ function drawVisualizer() {
     let barHeight;
     let x = 0;
 
-    let barColor = '#4CAF50'; // Standard
+    // Warna Visualizer Berdasarkan Kualitas
+    let barColor = '#4CAF50'; // Standard (Hijau)
     if (currentQuality === 'Data Saving') barColor = '#2196F3'; // Biru
     if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; // Emas
 
@@ -174,7 +192,7 @@ function drawVisualizer() {
     }
 }
 
-// --- LOGIKA UI & PLAYER (UPDATED) ---
+// --- LOGIKA UI & PLAYER ---
 function renderHomeList(songs) {
     homeList.innerHTML = "";
     songs.forEach((song, index) => {
@@ -196,7 +214,8 @@ function renderHomeList(songs) {
             </div>
             <div class="list-info" onclick="playSong(${index})">
                 <h4>${meta.title}</h4>
-                <p>${meta.artist}</p> </div>
+                <p>${meta.artist}</p>
+            </div>
             <button class="btn-save ${isSaved ? 'active' : ''}" onclick="toggleSave('${song.name}')">
                 <span class="material-icons-round">${isSaved ? 'bookmark' : 'bookmark_border'}</span>
             </button>
@@ -239,7 +258,7 @@ function parseSongInfo(filename) {
     }
 }
 
-// --- FUNGSI PLAYSONG DENGAN FITUR FALLBACK (UPDATED) ---
+// --- FUNGSI PLAYSONG (SMART DEFAULT & FOLDER FALLBACK) ---
 function playSong(index) {
     if(!audioCtx) initAudioEngine();
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -250,28 +269,37 @@ function playSong(index) {
     const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
 
-    // 1. Tentukan Target Folder Berdasarkan Kualitas
-    let targetFolder = 'lossless'; // Default (Hi-Fi)
+    // 1. SMART DEFAULT QUALITY
+    // Jika file FLAC, otomatis set Hi-Fi. Jika MP3, set Standard.
+    const isFlac = song.name.toLowerCase().endsWith('.flac');
+    if (isFlac) {
+        currentQuality = 'Hi-Fi';
+    } else {
+        currentQuality = 'Standard';
+    }
+    // Update label UI jika ada
+    const qualityLabel = document.getElementById('current-quality-label');
+    if(qualityLabel) qualityLabel.innerText = currentQuality;
+
+    // 2. LOGIKA PILIH FOLDER
+    let targetFolder = 'lossless';
     if (currentQuality === 'Standard') targetFolder = 'med';
     if (currentQuality === 'Data Saving') targetFolder = 'low';
 
-    // 2. Set Source Audio
-    const audioPath = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
-    audioPlayer.src = audioPath;
+    // 3. SET AUDIO SOURCE
+    audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
+    // Reset penanda fallback
+    audioPlayer.setAttribute('data-tried-original', 'false');
 
-    // 3. FITUR FALLBACK (ANTI-ERROR)
-    // Jika file di folder low/med tidak ada, otomatis pindah ke lossless
+    // 4. FALLBACK SYSTEM
+    // Jika file tidak ada di folder target, cari di folder aslinya (originalFolder)
     audioPlayer.onerror = function() {
-        if (targetFolder !== 'lossless') {
-            console.warn(`File di ${targetFolder} tidak ditemukan. Menggunakan Fallback (Lossless).`);
-            audioPlayer.src = `./songs/lossless/${encodeURIComponent(song.name)}`;
+        if (audioPlayer.getAttribute('data-tried-original') === 'false') {
+            console.warn(`File di ${targetFolder} tidak ada. Fallback ke ${song.originalFolder}`);
+            audioPlayer.setAttribute('data-tried-original', 'true');
+            audioPlayer.src = `./songs/${song.originalFolder}/${encodeURIComponent(song.name)}`;
             audioPlayer.play();
         }
-    };
-    
-    // Reset event error jika berhasil load
-    audioPlayer.onloadeddata = function() {
-        audioPlayer.onerror = null; 
     };
 
     audioPlayer.play().catch(e => console.log("Menunggu interaksi user..."));
@@ -285,7 +313,7 @@ function playSong(index) {
     updatePlayIcon(true);
 }
 
-// --- NEW FEATURES CONTROL ---
+// --- CONTROLS ---
 
 function updateBoost(value) {
     if(boosterNode) {
@@ -293,29 +321,52 @@ function updateBoost(value) {
     }
 }
 
-// UPDATED: QUALITY SELECTOR YANG LEBIH MULUS
 function selectQuality(quality) {
-    if(currentQuality === quality) return; // Jangan reload jika sama
+    if(currentQuality === quality) return;
     currentQuality = quality;
+    // Update Label
+    const qualityLabel = document.getElementById('current-quality-label');
+    if(qualityLabel) qualityLabel.innerText = currentQuality;
 
     const wasPlaying = !audioPlayer.paused;
-    const currTime = audioPlayer.currentTime; // Simpan durasi saat ini
+    const currTime = audioPlayer.currentTime;
     
-    // Reload lagu (akan mengambil folder baru di fungsi playSong)
-    playSong(currentIndex); 
+    // Logic manual override: 
+    // Saat user manual ganti kualitas, kita paksa ganti folder di playSong
+    // Tapi kita perlu manipulasi playSong agar tidak mereset Smart Default
+    // (Di sini kita sederhanakan: panggil playSong ulang, tapi playSong akan reset kualitas jika kita tidak hati-hati)
+    // SOLUSI: Kita set variable global currentQuality, dan di playSong kita cek apakah ini ganti lagu atau ganti kualitas.
+    // Tapi untuk simplifikasi kode sesuai permintaan, kita pakai logic playSong standar.
     
-    // Kembalikan ke durasi semula setelah data termuat
+    // Reload lagu dengan folder baru (Logic folder ada di dalam playSong)
+    // NOTE: playSong akan mereset quality berdasarkan file extension.
+    // Agar manual selection bekerja, kita harus bypass logic "Smart Default" jika ini reload manual.
+    // Tapi karena kode dibatasi, fitur Smart Default di playSong akan selalu menang saat ganti lagu.
+    // Saat ganti kualitas manual di tengah lagu, kita lakukan update src langsung di sini:
+
+    let targetFolder = 'lossless';
+    if (quality === 'Standard') targetFolder = 'med';
+    if (quality === 'Data Saving') targetFolder = 'low';
+    
+    const song = allSongs[currentIndex];
+    audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
+    
+    // Fallback manual juga perlu
+    audioPlayer.onerror = function() {
+        console.warn(`File manual quality tidak ada. Fallback.`);
+        audioPlayer.src = `./songs/${song.originalFolder}/${encodeURIComponent(song.name)}`;
+        audioPlayer.play();
+        audioPlayer.currentTime = currTime;
+    };
+
     audioPlayer.onloadeddata = () => {
         audioPlayer.currentTime = currTime;
         if(wasPlaying) audioPlayer.play();
-        audioPlayer.onloadeddata = null; // Bersihkan event listener
+        audioPlayer.onloadeddata = null;
     };
     
-    console.log("Quality Changed to: " + quality);
     if(typeof closeQualitySheet === 'function') closeQualitySheet();
 }
-
-// --- EXISTING CONTROLS ---
 
 function togglePlay() {
     if(!audioCtx) initAudioEngine();
