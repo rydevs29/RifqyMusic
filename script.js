@@ -14,7 +14,7 @@ let monoMergerNode, masterGainNode;
 let boosterNode; 
 let analyzer, dataArray, canvas, canvasCtx; 
 // Advanced FX Nodes
-let karaokeNode; // Disimpan agar chain tidak putus, tapi logicnya diganti file-swap
+let karaokeNode; // AI Vocal Remover
 let compressorNode; // Peak Normalization
 
 // Status FX & App
@@ -23,7 +23,7 @@ let isMono = false;
 let isKaraoke = false;
 let isPeak = false;
 let isCrossfade = false;
-let isLiteMode = false; 
+let isLiteMode = false; // Lite Mode
 let currentQuality = 'Hi-Fi'; 
 let isVisualizerEnabled = true; 
 let playbackSpeed = 1.0;
@@ -111,13 +111,13 @@ function initAudioEngine() {
         return filter;
     });
 
-    // 2. KARAOKE NODE (Dummy Node untuk menjaga rantai koneksi)
+    // 2. KARAOKE NODE (Vocal Remover)
     karaokeNode = audioCtx.createBiquadFilter();
-    karaokeNode.type = "notch"; 
-    karaokeNode.frequency.value = 1000; 
-    karaokeNode.Q.value = 0; 
+    karaokeNode.type = "notch"; // Filter pemotong frekuensi
+    karaokeNode.frequency.value = 1000; // Tengah vokal
+    karaokeNode.Q.value = 0; // Default mati (0)
 
-    // 3. PEAK NORMALIZATION
+    // 3. PEAK NORMALIZATION (Compressor)
     compressorNode = audioCtx.createDynamicsCompressor();
     compressorNode.threshold.setValueAtTime(-24, audioCtx.currentTime);
     compressorNode.knee.setValueAtTime(40, audioCtx.currentTime);
@@ -142,6 +142,7 @@ function initAudioEngine() {
     // 5. GAIN NODES
     boosterNode = audioCtx.createGain();
     boosterNode.gain.value = 1; 
+    
     masterGainNode = audioCtx.createGain(); 
     monoMergerNode = audioCtx.createChannelMerger(1); 
 
@@ -151,6 +152,7 @@ function initAudioEngine() {
     dataArray = new Uint8Array(analyzer.frequencyBinCount);
 
     // ROUTING (Chain)
+    // Source -> EQ -> Karaoke -> [Reverb + Booster] -> Compressor -> Master -> [Analyzer + Speaker]
     let chain = source;
     eqBands.forEach(band => { chain.connect(band); chain = band; });
     
@@ -192,7 +194,7 @@ function initVisualizerCanvas() {
 }
 
 function drawVisualizer() {
-    if (!isVisualizerEnabled) return; 
+    if (!isVisualizerEnabled) return; // Jika visualizer mati, stop render
 
     requestAnimationFrame(drawVisualizer);
     if(!analyzer) return;
@@ -204,9 +206,9 @@ function drawVisualizer() {
     let barHeight;
     let x = 0;
 
-    // Warna Visualizer mengikuti tema/accent
-    let computedStyle = getComputedStyle(document.body);
-    let barColor = computedStyle.getPropertyValue('--accent').trim() || '#00ff00';
+    let barColor = '#4CAF50'; 
+    if (currentQuality === 'Data Saving') barColor = '#2196F3'; 
+    if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; 
 
     canvasCtx.shadowBlur = currentQuality === 'Hi-Fi' && !isLiteMode ? 10 : 0; 
     canvasCtx.shadowColor = barColor;
@@ -222,6 +224,7 @@ function drawVisualizer() {
 function toggleVisualizer() {
     isVisualizerEnabled = document.getElementById('btn-visualizer').checked;
     const canvasEl = document.getElementById('visualizer');
+    
     if (isVisualizerEnabled) {
         if(canvasEl) canvasEl.style.display = 'block';
         drawVisualizer();
@@ -231,75 +234,43 @@ function toggleVisualizer() {
     }
 }
 
-// --- FEATURES LOGIC (UPDATED) ---
+// --- NEW FEATURES LOGIC ---
 
 function toggleLiteMode() {
     isLiteMode = document.getElementById('btn-litemode').checked;
+    
     if (isLiteMode) {
+        // Matikan Visualizer, Reverb, Karaoke untuk hemat performa
         isVisualizerEnabled = false;
         if(canvas) canvas.style.display = 'none';
+        
         if(reverbGainNode) reverbGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-        
-        document.body.classList.add('lite-version'); // Tambah class CSS Lite
-        
-        // Reset UI Switches
+        if(karaokeNode) karaokeNode.Q.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+
+        // Update UI agar user tau fitur mati
         document.getElementById('btn-visualizer').checked = false;
         document.getElementById('btn-3d').checked = false;
         document.getElementById('btn-karaoke').checked = false;
         
-        alert("Lite Mode Aktif: Performa diutamakan.");
+        alert("Lite Mode Aktif: Efek berat dinonaktifkan.");
     } else {
-        document.body.classList.remove('lite-version');
+        // Kembalikan ke normal (User harus nyalakan manual fitur yg diinginkan)
         alert("Lite Mode Mati: Silakan atur kembali fitur.");
     }
 }
 
-// UPDATE: KARAOKE FOLDER LOGIC (Bukan DSP)
 function toggleKaraoke() {
     isKaraoke = document.getElementById('btn-karaoke').checked;
-    
-    // Simpan posisi saat ini
-    const currentTime = audioPlayer.currentTime;
-    const wasPlaying = !audioPlayer.paused;
-    const song = allSongs[currentIndex];
-
-    if (isKaraoke) {
-        console.log("Karaoke Mode ON: Switching to instrumental...");
-        audioPlayer.src = `./songs/karaoke/${encodeURIComponent(song.name)}`;
-    } else {
-        console.log("Karaoke Mode OFF: Back to original...");
-        // Balik ke folder sesuai kualitas
-        let folder = (currentQuality === 'Hi-Fi' ? 'lossless' : (currentQuality === 'Standard' ? 'med' : 'low'));
-        audioPlayer.src = `./songs/${folder}/${encodeURIComponent(song.name)}`;
+    if(karaokeNode) {
+        // Q = 10 (Filter Tajam/Aktif), Q = 0 (Bypass/Mati)
+        karaokeNode.Q.setTargetAtTime(isKaraoke ? 10 : 0, audioCtx.currentTime, 0.1);
     }
-
-    // Sinkronisasi Waktu (Seamless Transition)
-    audioPlayer.onloadeddata = () => {
-        audioPlayer.currentTime = currentTime;
-        if (wasPlaying) audioPlayer.play();
-        audioPlayer.playbackRate = playbackSpeed;
-        audioPlayer.onloadeddata = null;
-    };
-
-    // Fallback Error (Jika file karaoke tidak ada)
-    audioPlayer.onerror = () => {
-        if(isKaraoke) {
-            alert("Versi Karaoke belum tersedia untuk lagu ini.");
-            document.getElementById('btn-karaoke').checked = false;
-            isKaraoke = false;
-            // Kembalikan ke original
-            let folder = (currentQuality === 'Hi-Fi' ? 'lossless' : (currentQuality === 'Standard' ? 'med' : 'low'));
-            audioPlayer.src = `./songs/${folder}/${encodeURIComponent(song.name)}`;
-            audioPlayer.load();
-            audioPlayer.currentTime = currentTime;
-            if(wasPlaying) audioPlayer.play();
-        }
-    };
 }
 
 function togglePeak() {
     isPeak = document.getElementById('btn-peak').checked;
     if(compressorNode) {
+        // Threshold rendah (-50) = Bypass, Tinggi (-10) = Aktif Normalisasi
         compressorNode.threshold.setTargetAtTime(isPeak ? -10 : -50, audioCtx.currentTime, 0.1);
     }
 }
@@ -313,6 +284,7 @@ async function loadLyrics(filename) {
     lyricsData = []; 
     const lrcName = filename.replace(/\.[^/.]+$/, "") + ".lrc";
     const url = `https://raw.githubusercontent.com/${CONFIG.user}/${CONFIG.repo}/main/${CONFIG.basePath}/lyrics/${encodeURIComponent(lrcName)}`;
+    
     try {
         const res = await fetch(url);
         if (res.ok) {
@@ -352,41 +324,6 @@ function updateLyrics(currentTime) {
     }
 }
 
-// --- DYNAMIC BACKGROUND & COLOR THIEVERY ---
-function updateThemeColor(imgElement) {
-    if (isLiteMode) return; // Skip di Lite Mode
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 1;
-    canvas.height = 1;
-    
-    // Gambar ulang img ke canvas 1x1 untuk ambil rata-rata warna
-    try {
-        ctx.drawImage(imgElement, 0, 0, 1, 1);
-        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-        
-        // Set Variable CSS
-        const color = `rgb(${r}, ${g}, ${b})`;
-        const dimColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
-        
-        document.documentElement.style.setProperty('--accent', color);
-        // Efek background gradient halus
-        document.body.style.background = `linear-gradient(to bottom, ${dimColor} 0%, #000000 100%)`;
-        
-        // Ubah warna text logo jika background terlalu terang (Simple Logic)
-        if ((r*0.299 + g*0.587 + b*0.114) > 186) {
-            document.documentElement.style.setProperty('--accent', '#000000');
-        }
-
-    } catch (e) {
-        console.warn("CORS/Image error for theme extraction", e);
-        // Reset default
-        document.documentElement.style.setProperty('--accent', '#00ff00');
-        document.body.style.background = '#000000';
-    }
-}
-
 // --- PLAYBACK CONTROLS ---
 function setSleepTimer(minutes) {
     if (sleepTimer) clearTimeout(sleepTimer);
@@ -417,7 +354,7 @@ function renderHomeList(songs) {
         div.className = 'list-item';
         div.innerHTML = `
             <div class="list-img" onclick="playSong(${index})">
-                <img src="${coverUrl}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" class="song-cover" loading="lazy">
+                <img src="${coverUrl}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" class="song-cover">
                 <div class="placeholder-box" style="display:none; width:100%; height:100%; align-items:center; justify-content:center; background:#111;">
                     <span class="material-icons-round" style="color:#333; font-size:24px;">audiotrack</span>
                 </div>
@@ -473,9 +410,9 @@ function playSong(index) {
     if(!audioCtx) initAudioEngine();
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
-    // Crossfade Logic
+    // Crossfade Check
     if (isCrossfade && !audioPlayer.paused) {
-        masterGainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2); 
+        masterGainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2); // Fade Out 2s
         setTimeout(() => startNewSong(index), 2000);
     } else {
         startNewSong(index);
@@ -487,66 +424,38 @@ function startNewSong(index) {
     const song = allSongs[index];
     const meta = parseSongInfo(song.name);
     const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
-    
-    // Update UI Cover & Title
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
-    
-    // Trigger Dynamic Theme saat gambar load
-    fullCover.onload = () => updateThemeColor(fullCover);
-    fullCover.onerror = () => {
-        fullCover.src='https://img.icons8.com/material-rounded/128/333333/musical-notes.png';
-        // Reset theme ke default jika error
-        document.documentElement.style.setProperty('--accent', '#00ff00');
-        document.body.style.background = '#000000';
-    };
 
     loadLyrics(song.name);
 
-    // Fade In Volume
+    // Fade In (Reset Gain)
     if(masterGainNode) {
         masterGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
         masterGainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
         masterGainNode.gain.exponentialRampToValueAtTime(1, audioCtx.currentTime + 1);
     }
 
-    // LOGIC PRIORITAS FOLDER (Karaoke > Lite > Quality)
-    let folder = 'lossless';
+    // Smart Default Quality / Lite Mode Priority
     const isFlac = song.name.toLowerCase().endsWith('.flac');
-
-    if (isKaraoke) {
-        folder = 'karaoke';
-    } else if (isLiteMode) {
-        currentQuality = 'Data Saving'; 
-        folder = 'low';
+    if (isLiteMode) {
+        currentQuality = 'Data Saving'; // Paksa rendah di Lite Mode
     } else {
-        // Normal Mode
         if (isFlac) currentQuality = 'Hi-Fi';
         else currentQuality = 'Standard';
-        
-        if (currentQuality === 'Standard') folder = 'med';
-        if (currentQuality === 'Data Saving') folder = 'low';
     }
     
-    // Update Label UI
     const qualityLabel = document.getElementById('current-quality-label');
-    if(qualityLabel) qualityLabel.innerText = isKaraoke ? 'Karaoke' : currentQuality;
+    if(qualityLabel) qualityLabel.innerText = currentQuality;
 
-    audioPlayer.src = `./songs/${folder}/${encodeURIComponent(song.name)}`;
+    let targetFolder = 'lossless';
+    if (currentQuality === 'Standard') targetFolder = 'med';
+    if (currentQuality === 'Data Saving') targetFolder = 'low';
+
+    audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
     audioPlayer.setAttribute('data-tried-original', 'false');
     audioPlayer.playbackRate = playbackSpeed;
 
-    // Error Handling Khusus Karaoke / Fallback
     audioPlayer.onerror = function() {
-        if (isKaraoke) {
-            console.warn("Karaoke file not found. Fallback to original.");
-            alert("Versi Karaoke belum tersedia untuk lagu ini.");
-            document.getElementById('btn-karaoke').checked = false;
-            isKaraoke = false;
-            // Panggil diri sendiri lagi (recursion) tapi isKaraoke sudah false
-            startNewSong(index); 
-            return;
-        }
-
         if (audioPlayer.getAttribute('data-tried-original') === 'false') {
             console.warn(`Fallback ke ${song.originalFolder}`);
             audioPlayer.setAttribute('data-tried-original', 'true');
@@ -575,14 +484,7 @@ function updateBoost(value) {
 }
 
 function selectQuality(quality) {
-    if(currentQuality === quality && !isKaraoke) return;
-    
-    // Jika sedang karaoke dan user ganti kualitas, matikan karaoke
-    if(isKaraoke) {
-        isKaraoke = false;
-        document.getElementById('btn-karaoke').checked = false;
-    }
-
+    if(currentQuality === quality) return;
     currentQuality = quality;
     const qualityLabel = document.getElementById('current-quality-label');
     if(qualityLabel) qualityLabel.innerText = currentQuality;
@@ -633,9 +535,7 @@ function updatePlayIcon(isPlaying) {
 function openSettings() {
     document.getElementById('settings-modal').classList.add('show');
     document.getElementById('settings-overlay').style.display = 'block';
-    // Fix scroll agar tombol X kelihatan (karena sticky header)
-    const content = document.querySelector('.settings-content');
-    if(content) content.scrollTop = 0;
+    document.getElementById('settings-modal').scrollTop = 0; // Fix scroll agar tombol X kelihatan
 }
 
 function closeSettings() {
@@ -718,6 +618,7 @@ audioPlayer.ontimeupdate = () => {
         currentTimeEl.innerText = formatTime(audioPlayer.currentTime);
         durationEl.innerText = formatTime(audioPlayer.duration);
         
+        // SYNC LYRICS REAL-TIME
         updateLyrics(audioPlayer.currentTime);
     }
 };
