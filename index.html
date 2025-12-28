@@ -7,6 +7,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* CSS TAMBAHAN UNTUK FITUR BARU (Agar langsung rapi) */
+        #visualizer { width: 100%; height: 60px; margin-top: 10px; border-radius: 8px; }
+        .btn-quality-badge {
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: #ccc; padding: 4px 10px; border-radius: 20px; font-size: 11px;
+            margin-top: 5px; cursor: pointer; display: inline-flex; align-items: center;
+        }
+        .bottom-sheet {
+            position: fixed; bottom: -100%; left: 0; width: 100%;
+            background: #1a1a1a; border-radius: 20px 20px 0 0; padding: 25px;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 3000;
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.8);
+        }
+        .bottom-sheet.active { bottom: 0; }
+        .q-option {
+            padding: 15px; background: #252525; border-radius: 12px;
+            margin-bottom: 10px; display: flex; justify-content: space-between;
+            align-items: center; cursor: pointer; border: 1px solid transparent;
+        }
+        .q-option.active { border-color: #00ff00; background: #153315; }
+        .q-text h4 { color: #fff; margin-bottom: 2px; font-size: 14px; }
+        .q-text p { color: #888; font-size: 11px; }
+    </style>
 </head>
 <body>
 
@@ -75,9 +99,16 @@
             <img src="" alt="Cover" id="full-cover" onerror="this.src='https://img.icons8.com/material-rounded/128/333333/musical-notes.png'">
         </div>
 
-        <div class="player-info">
+        <div class="player-info" style="text-align:center;">
             <h2 id="full-title">Judul Lagu</h2>
             <p id="full-artist">RifqyMusic</p>
+            
+            <button class="btn-quality-badge" onclick="openQualitySheet()">
+                <span class="material-icons-round" style="font-size:12px; margin-right:4px;">high_quality</span>
+                <span id="current-quality-label">Hi-Fi</span>
+            </button>
+
+            <canvas id="visualizer"></canvas>
         </div>
 
         <div class="player-controls">
@@ -107,7 +138,7 @@
         </div>
     </div>
 
-    <div id="settings-overlay" class="settings-overlay" onclick="closeSettings()"></div>
+    <div id="settings-overlay" class="settings-overlay" onclick="closeSettings(); closeQualitySheet()"></div>
 
     <div id="settings-modal" class="settings-modal">
         <div class="settings-header">
@@ -117,6 +148,14 @@
             </button>
         </div>
         
+        <div class="fx-item" style="margin-bottom: 20px; flex-direction:column; align-items:flex-start;">
+            <div style="display:flex; justify-content:space-between; width:100%; margin-bottom:5px;">
+                <span class="fx-text">Volume Boost (200%)</span>
+                <span class="fx-text" style="color:#00ff00; font-size:10px;">⚠️ LOUD</span>
+            </div>
+            <input type="range" min="1" max="2" step="0.1" value="1" style="width:100%; height:4px;" oninput="updateBoost(this.value)">
+        </div>
+
         <div class="fx-row">
             <div class="fx-item">
                 <span class="fx-text">3D Surround</span>
@@ -165,7 +204,48 @@
         </div>
     </div>
 
+    <div id="qualitySheet" class="bottom-sheet">
+        <h3 style="color:#fff; margin-bottom:20px;">Music Quality</h3>
+        
+        <div class="q-option active" onclick="selectQuality('Hi-Fi'); closeQualitySheet()">
+            <div class="q-text">
+                <h4>Hi-Fi (Lossless)</h4>
+                <p>Kualitas studio asli (Folder: lossless)</p>
+            </div>
+            <span class="material-icons-round" style="color:#00ff00;">check_circle</span>
+        </div>
+
+        <div class="q-option" onclick="selectQuality('Standard'); closeQualitySheet()">
+            <div class="q-text">
+                <h4>Standard</h4>
+                <p>Hemat data, suara jernih (Folder: med)</p>
+            </div>
+        </div>
+
+        <div class="q-option" onclick="selectQuality('Data Saving'); closeQualitySheet()">
+            <div class="q-text">
+                <h4>Data Saving</h4>
+                <p>Sangat hemat kuota (Folder: low)</p>
+            </div>
+        </div>
+
+        <button onclick="closeQualitySheet()" style="width:100%; padding:15px; background:transparent; border:none; color:#666; font-weight:bold; margin-top:10px;">BATAL</button>
+    </div>
+
+    <script>
+        function openQualitySheet() {
+            document.getElementById('qualitySheet').classList.add('active');
+            document.getElementById('settings-overlay').style.display = 'block';
+        }
+        function closeQualitySheet() {
+            document.getElementById('qualitySheet').classList.remove('active');
+            // Cek apakah settings modal juga terbuka, kalau tidak baru tutup overlay
+            if(!document.getElementById('settings-modal').classList.contains('show')) {
+                document.getElementById('settings-overlay').style.display = 'none';
+            }
+        }
+    </script>
+
     <script src="script.js"></script>
 </body>
-                </html>
-                                                                                                                          
+</html>
