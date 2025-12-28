@@ -14,6 +14,13 @@ body {
     display: flex; justify-content: center;
 }
 
+/* LITE MODE OPTIMIZATION (Hemat GPU) */
+body.lite-version * {
+    transition: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+}
+
 body > div, .view, .player-overlay, .bottom-nav, .settings-modal, .bottom-sheet {
     width: 100%; max-width: var(--max-width); position: relative;
 }
@@ -101,16 +108,33 @@ body > div, .view, .player-overlay, .bottom-nav, .settings-modal, .bottom-sheet 
     background: rgba(0,0,0,0.8); z-index: 2500; display: none; backdrop-filter: blur(5px);
 }
 
+/* --- UPDATED MODAL STYLES (Fix UI Kepotong) --- */
 .settings-modal {
     position: fixed; bottom: 0; left: 50%; transform: translate(-50%, 100%);
     width: 100%; max-width: var(--max-width); background: #111; 
-    border-radius: 24px 24px 0 0; padding: 25px; z-index: 2600; 
+    border-radius: 24px 24px 0 0; 
+    z-index: 2600; 
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
     border-top: 1px solid #333; box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+    
+    /* Layout Flexible agar Header Sticky & Konten Scrollable */
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh; /* Membatasi tinggi agar tidak nabrak atas layar */
+    padding: 0; /* Padding dipindah ke children */
 }
 .settings-modal.show { transform: translate(-50%, 0); }
 
-.settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #222; }
+.settings-header { 
+    display: flex; justify-content: space-between; align-items: center; 
+    padding: 20px 25px; /* Padding Header */
+    border-bottom: 1px solid #222;
+    background: #111; /* Background Opaque agar konten tidak tembus */
+    position: sticky; /* Nempel di atas */
+    top: 0;
+    z-index: 10;
+    flex-shrink: 0;
+}
 .settings-header h3 { color: var(--accent); font-weight: 900; letter-spacing: 1px; }
 
 .btn-close { background: #222; border: none; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
@@ -150,7 +174,6 @@ input:checked + .slider:before { transform: translateX(22px); }
     width: 100%; height: 60px; margin-top: 10px; border-radius: 8px;
     background: transparent;
 }
-/* Helper class untuk mematikan Visualizer (On/Off) */
 #visualizer.hidden { display: none !important; }
 
 /* 2. Quality Badge Button (Player) */
