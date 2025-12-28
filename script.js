@@ -9,24 +9,27 @@ const CONFIG = {
 let audioCtx, source;
 // Node Audio FX
 let eqBands = []; // 5 Equalizer
-let reverbNode, reverbGainNode; // Untuk 3D Real
-let monoMergerNode, masterGainNode; // Untuk Mono & Master Volume
+let reverbNode, reverbGainNode; // 3D Surround
+let monoMergerNode, masterGainNode; // Mono & Master
+let boosterNode; // Volume Boost 200%
+let analyzer, dataArray, canvas, canvasCtx; // Visualizer
 
-// Status FX
+// Status FX & App
 let is3D = false;
 let isMono = false;
+let currentQuality = 'Hi-Fi'; // Default: Hi-Fi (Folder 'lossless'/'high')
 
 const audioPlayer = new Audio();
-audioPlayer.crossOrigin = "anonymous"; // WAJIB
+audioPlayer.crossOrigin = "anonymous"; 
 
-// UI Elements (Sama seperti sebelumnya)
+// UI Elements
 const homeList = document.getElementById('home-list');
 const savedList = document.getElementById('saved-list');
 const fullPlayer = document.getElementById('view-player');
 const miniPlayer = document.getElementById('mini-player');
 const searchInput = document.getElementById('search-input');
 const fullTitle = document.getElementById('full-title');
-const fullArtist = document.getElementById('full-artist');
+const fullArtist = document.getElementById('full-artist'); // New Element
 const fullCover = document.getElementById('full-cover');
 const progressBar = document.getElementById('progress-bar');
 const currentTimeEl = document.getElementById('current-time');
@@ -65,83 +68,130 @@ async function init() {
     }
 }
 
-// --- SETUP AUDIO ENGINE CANGGIH ---
+// --- SETUP AUDIO ENGINE CANGGIH (UPDATED) ---
 function initAudioEngine() {
-    if (audioCtx) return; // Cegah double init
+    if (audioCtx) return; 
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContext();
     source = audioCtx.createMediaElementSource(audioPlayer);
 
-    // 1. SETUP EQUALIZER (5 Band Series)
+    // 1. SETUP EQUALIZER
     const freqs = [60, 250, 1000, 4000, 16000];
     eqBands = freqs.map(f => {
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'peaking';
         filter.frequency.value = f;
-        filter.gain.value = 0; // Default Flat
+        filter.gain.value = 0; 
         return filter;
     });
-    // Rangkai EQ secara seri: Source -> EQ1 -> EQ2... -> EQ5
     let eqChain = source;
     eqBands.forEach(band => { eqChain.connect(band); eqChain = band; });
-    const eqOutput = eqChain; // Output akhir dari rantai EQ
+    const eqOutput = eqChain; 
 
-    // 2. SETUP 3D REVERB (Convolver - Gema Nyata)
+    // 2. SETUP 3D REVERB
     reverbNode = audioCtx.createConvolver();
     reverbGainNode = audioCtx.createGain();
-    reverbGainNode.gain.value = 0; // Default Mati (Dry)
+    reverbGainNode.gain.value = 0; 
 
-    // Membuat impuls gema buatan (Hall Effect 2 detik)
     const duration = 2;
     const length = audioCtx.sampleRate * duration;
     const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
     for (let i = 0; i < length; i++) {
-        // Noise yang mengecil secara eksponensial untuk simulasi gema
         const decay = Math.pow(1 - i / length, 2);
         impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * decay;
         impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * decay;
     }
     reverbNode.buffer = impulse;
 
-    // 3. SETUP MONO & MASTER
-    monoMergerNode = audioCtx.createChannelMerger(1); // Paksa jadi 1 channel
-    masterGainNode = audioCtx.createGain(); // Volume Akhir sebelum speaker
+    // 3. SETUP VOLUME BOOST (NEW)
+    boosterNode = audioCtx.createGain();
+    boosterNode.gain.value = 1; // Default 100%
 
-    // --- ROUTING KABEL AUDIO (PENTING!) ---
-    // Jalur 1 (Dry/Asli): EQ Output langsung ke Master
-    eqOutput.connect(masterGainNode);
-    
-    // Jalur 2 (Wet/3D): EQ Output -> Reverb -> Reverb Volume -> Master
+    // 4. SETUP ANALYZER (VISUALIZER) (NEW)
+    analyzer = audioCtx.createAnalyser();
+    analyzer.fftSize = 64; // Jumlah batang visualizer
+    const bufferLength = analyzer.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    // 5. SETUP MASTER & ROUTING
+    monoMergerNode = audioCtx.createChannelMerger(1); 
+    masterGainNode = audioCtx.createGain(); 
+
+    // Rangkai Kabel Audio:
+    // EQ -> Booster
+    eqOutput.connect(boosterNode);
+    // EQ -> Reverb -> ReverbGain -> Booster
     eqOutput.connect(reverbNode);
     reverbNode.connect(reverbGainNode);
-    reverbGainNode.connect(masterGainNode);
+    reverbGainNode.connect(boosterNode);
+    
+    // Booster -> Master
+    boosterNode.connect(masterGainNode);
 
-    // Jalur Akhir: Master -> Speaker (Default Stereo)
+    // Master -> Analyzer (Visualizer)
+    masterGainNode.connect(analyzer);
+
+    // Master -> Speaker (Final)
     connectFinalOutput();
+    
+    // Mulai Gambar Visualizer
+    initVisualizerCanvas();
 }
 
-// Fungsi Routing Akhir (Stereo vs Mono)
 function connectFinalOutput() {
-    // Putus dulu koneksi lama biar gak numpuk
     masterGainNode.disconnect();
     monoMergerNode.disconnect();
-
     if (isMono) {
-        // Jika Mono Aktif: Master -> Merger (jadi 1) -> Speaker
         masterGainNode.connect(monoMergerNode);
         monoMergerNode.connect(audioCtx.destination);
     } else {
-        // Jika Stereo (Default): Master -> Speaker langsung
         masterGainNode.connect(audioCtx.destination);
     }
 }
 
-// --- LOGIKA UI & PLAYER (Sama seperti sebelumnya) ---
+// --- VISUALIZER ENGINE (NEW) ---
+function initVisualizerCanvas() {
+    canvas = document.getElementById('visualizer');
+    if(!canvas) return; // Cek kalau user belum pasang canvas di HTML
+    canvasCtx = canvas.getContext('2d');
+    drawVisualizer();
+}
+
+function drawVisualizer() {
+    requestAnimationFrame(drawVisualizer);
+    if(!analyzer) return;
+
+    analyzer.getByteFrequencyData(dataArray);
+    canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let barWidth = (canvas.width / dataArray.length) * 2.5;
+    let barHeight;
+    let x = 0;
+
+    // Warna Visualizer Berdasarkan Kualitas
+    let barColor = '#4CAF50'; // Standard (Hijau)
+    if (currentQuality === 'Data Saving') barColor = '#2196F3'; // Biru
+    if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; // Emas (Glow)
+
+    // Efek Glow
+    canvasCtx.shadowBlur = currentQuality === 'Hi-Fi' ? 15 : 0;
+    canvasCtx.shadowColor = barColor;
+
+    for (let i = 0; i < dataArray.length; i++) {
+        barHeight = dataArray[i] / 2;
+        canvasCtx.fillStyle = barColor;
+        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+        x += barWidth + 1;
+    }
+}
+
+// --- LOGIKA UI & PLAYER (UPDATED) ---
 function renderHomeList(songs) {
     homeList.innerHTML = "";
     songs.forEach((song, index) => {
         const isSaved = savedSongs.includes(song.name);
-        const title = parseTitle(song.name).title;
+        // Pakai Smart Parser Baru
+        const meta = parseSongInfo(song.name); 
         const isFlac = song.name.toLowerCase().endsWith('.flac');
         const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
         const coverUrl = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
@@ -157,9 +207,8 @@ function renderHomeList(songs) {
                 <div class="badge-flac">${isFlac ? 'FLAC' : 'HQ'}</div>
             </div>
             <div class="list-info" onclick="playSong(${index})">
-                <h4>${title}</h4>
-                <p>RifqyMusic</p>
-            </div>
+                <h4>${meta.title}</h4>
+                <p>${meta.artist}</p> </div>
             <button class="btn-save ${isSaved ? 'active' : ''}" onclick="toggleSave('${song.name}')">
                 <span class="material-icons-round">${isSaved ? 'bookmark' : 'bookmark_border'}</span>
             </button>
@@ -173,7 +222,7 @@ function renderSavedList() {
     const mySavedSongs = allSongs.filter(s => savedSongs.includes(s.name));
     mySavedSongs.forEach((song) => {
         const idx = allSongs.findIndex(s => s.name === song.name);
-        const title = parseTitle(song.name).title;
+        const meta = parseSongInfo(song.name);
         const div = document.createElement('div');
         div.className = 'list-item';
         div.innerHTML = `
@@ -181,8 +230,8 @@ function renderSavedList() {
                 <span class="material-icons-round" style="color:#666;">audiotrack</span>
             </div>
             <div class="list-info" onclick="playSong(${idx})">
-                <h4>${title}</h4>
-                <p>Tersimpan</p>
+                <h4>${meta.title}</h4>
+                <p>${meta.artist}</p>
             </div>
             <button class="btn-save active" onclick="toggleSave('${song.name}')">
                 <span class="material-icons-round">bookmark</span>
@@ -192,28 +241,82 @@ function renderSavedList() {
     });
 }
 
+// SMART PARSER (Format: Artis - Judul atau Judul saja)
+function parseSongInfo(filename) {
+    let cleanName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " "); // Hapus ekstensi
+    let parts = cleanName.split(" - ");
+    
+    if (parts.length >= 2) {
+        // Asumsi format: Artis - Judul
+        return { artist: parts[0].trim(), title: parts[1].trim() };
+    } else {
+        // Format biasa
+        return { artist: "RifqyMusic", title: cleanName };
+    }
+}
+
 function playSong(index) {
-    // Wajib init engine saat user interaksi pertama
     if(!audioCtx) initAudioEngine();
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
     currentIndex = index;
     const song = allSongs[index];
-    const meta = parseTitle(song.name);
+    const meta = parseSongInfo(song.name);
     const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
 
-    audioPlayer.src = `./${song.folderPath}/${encodeURIComponent(song.name)}`;
-    audioPlayer.play();
+    // --- LOGIKA MUSIC QUALITY (FOLDER SWITCHING) ---
+    // Hi-Fi = folder 'lossless' (sesuai config user)
+    // Standard = folder 'med'
+    // Data Saving = folder 'low'
+    
+    let targetFolder = 'lossless'; // Default (Hi-Fi)
+    if (currentQuality === 'Standard') targetFolder = 'med';
+    if (currentQuality === 'Data Saving') targetFolder = 'low';
+
+    // Cek apakah pakai subfolder atau root 'songs'
+    // Note: User harus buat folder 'med' dan 'low' di GitHub kalau mau fitur ini jalan
+    audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
+    
+    audioPlayer.play().catch(e => console.log("Menunggu interaksi user..."));
 
     fullTitle.innerText = meta.title;
-    fullArtist.innerText = meta.artist;
+    if(fullArtist) fullArtist.innerText = meta.artist; // Update Artis di Player
     document.getElementById('mini-title').innerText = meta.title;
     document.getElementById('mini-artist').innerText = meta.artist;
     miniPlayer.classList.remove('hidden');
     maximizePlayer();
     updatePlayIcon(true);
 }
+
+// --- NEW FEATURES CONTROL ---
+
+// 1. VOLUME BOOST (100% - 200%)
+function updateBoost(value) {
+    // Value dari slider (1.0 sampai 2.0)
+    if(boosterNode) {
+        boosterNode.gain.setTargetAtTime(value, audioCtx.currentTime, 0.1);
+    }
+}
+
+// 2. QUALITY SELECTOR
+function selectQuality(quality) {
+    currentQuality = quality;
+    // Simpan waktu, reload lagu dengan folder baru
+    const wasPlaying = !audioPlayer.paused;
+    const currTime = audioPlayer.currentTime;
+    
+    playSong(currentIndex); // Reload dengan folder baru
+    
+    audioPlayer.currentTime = currTime;
+    if(!wasPlaying) audioPlayer.pause();
+    
+    console.log("Quality Changed to: " + quality);
+    // Tutup modal quality jika ada (panggil fungsi UI close)
+    if(typeof closeQualitySheet === 'function') closeQualitySheet();
+}
+
+// --- EXISTING CONTROLS ---
 
 function togglePlay() {
     if(!audioCtx) initAudioEngine();
@@ -231,7 +334,6 @@ function updatePlayIcon(isPlaying) {
     document.getElementById('mini-play-icon').innerText = icon;
 }
 
-// --- SETTINGS & FX CONTROLS (REAL TIME) ---
 function openSettings() {
     document.getElementById('settings-modal').classList.add('show');
     document.getElementById('settings-overlay').style.display = 'block';
@@ -251,39 +353,30 @@ function resetEQ() {
     if(!audioCtx) return;
     eqBands.forEach(band => band.gain.value = 0);
     document.querySelectorAll('.eq-slider').forEach(slider => slider.value = 0);
-    // Jika 3D aktif, matikan visualnya juga karena EQ direset
-    if(is3D) {
-        document.getElementById('btn-3d').click(); 
-    }
+    if(is3D) document.getElementById('btn-3d').click(); 
 }
 
-// TOGGLE REAL 3D SURROUND
 function toggle3D() {
     if(!audioCtx) initAudioEngine();
     is3D = !is3D;
     if(is3D) {
-        // Aktifkan: Naikkan volume jalur Reverb (Wet Signal)
-        // Dan sedikit boost EQ ujung untuk efek "lebar"
-        reverbGainNode.gain.setTargetAtTime(0.6, audioCtx.currentTime, 0.1); // 60% Gema
+        reverbGainNode.gain.setTargetAtTime(0.6, audioCtx.currentTime, 0.1); 
         updateEQ(0, parseFloat(document.querySelectorAll('.eq-slider')[0].value) + 4);
         updateEQ(4, parseFloat(document.querySelectorAll('.eq-slider')[4].value) + 4);
     } else {
-        // Matikan: Volume reverb jadi 0
         reverbGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
         updateEQ(0, parseFloat(document.querySelectorAll('.eq-slider')[0].value) - 4);
         updateEQ(4, parseFloat(document.querySelectorAll('.eq-slider')[4].value) - 4);
     }
 }
 
-// TOGGLE REAL MONO AUDIO
 function toggleMono() {
     if(!audioCtx) initAudioEngine();
     isMono = !isMono;
-    // Ubah routing akhir secara real-time
     connectFinalOutput();
 }
 
-// --- UTILS ---
+// UTILS
 function toggleSave(name) {
     if(savedSongs.includes(name)) savedSongs = savedSongs.filter(n => n !== name);
     else savedSongs.push(name);
@@ -302,9 +395,6 @@ function switchTab(tab) {
 function handleSearch() {
     const term = searchInput.value.toLowerCase();
     renderHomeList(allSongs.filter(s => s.name.toLowerCase().includes(term)));
-}
-function parseTitle(filename) {
-    return { title: filename.replace(/\.[^/.]+$/, "").replace(/-/g, " "), artist: "RifqyMusic" };
 }
 function playNext() {
     if (isShuffle) playSong(Math.floor(Math.random() * allSongs.length));
