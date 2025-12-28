@@ -29,7 +29,7 @@ const fullPlayer = document.getElementById('view-player');
 const miniPlayer = document.getElementById('mini-player');
 const searchInput = document.getElementById('search-input');
 const fullTitle = document.getElementById('full-title');
-const fullArtist = document.getElementById('full-artist'); // New Element
+const fullArtist = document.getElementById('full-artist');
 const fullCover = document.getElementById('full-cover');
 const progressBar = document.getElementById('progress-bar');
 const currentTimeEl = document.getElementById('current-time');
@@ -118,23 +118,14 @@ function initAudioEngine() {
     masterGainNode = audioCtx.createGain(); 
 
     // Rangkai Kabel Audio:
-    // EQ -> Booster
     eqOutput.connect(boosterNode);
-    // EQ -> Reverb -> ReverbGain -> Booster
     eqOutput.connect(reverbNode);
     reverbNode.connect(reverbGainNode);
     reverbGainNode.connect(boosterNode);
-    
-    // Booster -> Master
     boosterNode.connect(masterGainNode);
-
-    // Master -> Analyzer (Visualizer)
     masterGainNode.connect(analyzer);
-
-    // Master -> Speaker (Final)
     connectFinalOutput();
     
-    // Mulai Gambar Visualizer
     initVisualizerCanvas();
 }
 
@@ -152,7 +143,7 @@ function connectFinalOutput() {
 // --- VISUALIZER ENGINE (NEW) ---
 function initVisualizerCanvas() {
     canvas = document.getElementById('visualizer');
-    if(!canvas) return; // Cek kalau user belum pasang canvas di HTML
+    if(!canvas) return; 
     canvasCtx = canvas.getContext('2d');
     drawVisualizer();
 }
@@ -168,12 +159,10 @@ function drawVisualizer() {
     let barHeight;
     let x = 0;
 
-    // Warna Visualizer Berdasarkan Kualitas
-    let barColor = '#4CAF50'; // Standard (Hijau)
+    let barColor = '#4CAF50'; // Standard
     if (currentQuality === 'Data Saving') barColor = '#2196F3'; // Biru
-    if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; // Emas (Glow)
+    if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; // Emas
 
-    // Efek Glow
     canvasCtx.shadowBlur = currentQuality === 'Hi-Fi' ? 15 : 0;
     canvasCtx.shadowColor = barColor;
 
@@ -190,7 +179,6 @@ function renderHomeList(songs) {
     homeList.innerHTML = "";
     songs.forEach((song, index) => {
         const isSaved = savedSongs.includes(song.name);
-        // Pakai Smart Parser Baru
         const meta = parseSongInfo(song.name); 
         const isFlac = song.name.toLowerCase().endsWith('.flac');
         const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
@@ -241,20 +229,17 @@ function renderSavedList() {
     });
 }
 
-// SMART PARSER (Format: Artis - Judul atau Judul saja)
 function parseSongInfo(filename) {
-    let cleanName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " "); // Hapus ekstensi
+    let cleanName = filename.replace(/\.[^/.]+$/, "").replace(/_/g, " "); 
     let parts = cleanName.split(" - ");
-    
     if (parts.length >= 2) {
-        // Asumsi format: Artis - Judul
         return { artist: parts[0].trim(), title: parts[1].trim() };
     } else {
-        // Format biasa
         return { artist: "RifqyMusic", title: cleanName };
     }
 }
 
+// --- FUNGSI PLAYSONG DENGAN FITUR FALLBACK (UPDATED) ---
 function playSong(index) {
     if(!audioCtx) initAudioEngine();
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -265,23 +250,34 @@ function playSong(index) {
     const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
 
-    // --- LOGIKA MUSIC QUALITY (FOLDER SWITCHING) ---
-    // Hi-Fi = folder 'lossless' (sesuai config user)
-    // Standard = folder 'med'
-    // Data Saving = folder 'low'
-    
+    // 1. Tentukan Target Folder Berdasarkan Kualitas
     let targetFolder = 'lossless'; // Default (Hi-Fi)
     if (currentQuality === 'Standard') targetFolder = 'med';
     if (currentQuality === 'Data Saving') targetFolder = 'low';
 
-    // Cek apakah pakai subfolder atau root 'songs'
-    // Note: User harus buat folder 'med' dan 'low' di GitHub kalau mau fitur ini jalan
-    audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
+    // 2. Set Source Audio
+    const audioPath = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
+    audioPlayer.src = audioPath;
+
+    // 3. FITUR FALLBACK (ANTI-ERROR)
+    // Jika file di folder low/med tidak ada, otomatis pindah ke lossless
+    audioPlayer.onerror = function() {
+        if (targetFolder !== 'lossless') {
+            console.warn(`File di ${targetFolder} tidak ditemukan. Menggunakan Fallback (Lossless).`);
+            audioPlayer.src = `./songs/lossless/${encodeURIComponent(song.name)}`;
+            audioPlayer.play();
+        }
+    };
     
+    // Reset event error jika berhasil load
+    audioPlayer.onloadeddata = function() {
+        audioPlayer.onerror = null; 
+    };
+
     audioPlayer.play().catch(e => console.log("Menunggu interaksi user..."));
 
     fullTitle.innerText = meta.title;
-    if(fullArtist) fullArtist.innerText = meta.artist; // Update Artis di Player
+    if(fullArtist) fullArtist.innerText = meta.artist;
     document.getElementById('mini-title').innerText = meta.title;
     document.getElementById('mini-artist').innerText = meta.artist;
     miniPlayer.classList.remove('hidden');
@@ -291,28 +287,31 @@ function playSong(index) {
 
 // --- NEW FEATURES CONTROL ---
 
-// 1. VOLUME BOOST (100% - 200%)
 function updateBoost(value) {
-    // Value dari slider (1.0 sampai 2.0)
     if(boosterNode) {
         boosterNode.gain.setTargetAtTime(value, audioCtx.currentTime, 0.1);
     }
 }
 
-// 2. QUALITY SELECTOR
+// UPDATED: QUALITY SELECTOR YANG LEBIH MULUS
 function selectQuality(quality) {
+    if(currentQuality === quality) return; // Jangan reload jika sama
     currentQuality = quality;
-    // Simpan waktu, reload lagu dengan folder baru
+
     const wasPlaying = !audioPlayer.paused;
-    const currTime = audioPlayer.currentTime;
+    const currTime = audioPlayer.currentTime; // Simpan durasi saat ini
     
-    playSong(currentIndex); // Reload dengan folder baru
+    // Reload lagu (akan mengambil folder baru di fungsi playSong)
+    playSong(currentIndex); 
     
-    audioPlayer.currentTime = currTime;
-    if(!wasPlaying) audioPlayer.pause();
+    // Kembalikan ke durasi semula setelah data termuat
+    audioPlayer.onloadeddata = () => {
+        audioPlayer.currentTime = currTime;
+        if(wasPlaying) audioPlayer.play();
+        audioPlayer.onloadeddata = null; // Bersihkan event listener
+    };
     
     console.log("Quality Changed to: " + quality);
-    // Tutup modal quality jika ada (panggil fungsi UI close)
     if(typeof closeQualitySheet === 'function') closeQualitySheet();
 }
 
