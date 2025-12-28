@@ -84,6 +84,8 @@
                 <span id="current-quality-label">Hi-Fi</span>
             </button>
 
+            <p id="lyrics-text" style="color:rgba(255,255,255,0.7); font-size:14px; margin:15px 0 5px 0; font-style:italic; min-height:20px; transition:0.3s;">...</p>
+
             <canvas id="visualizer"></canvas>
         </div>
 
@@ -147,6 +149,35 @@
                     <span class="slider round"></span>
                 </label>
             </div>
+        </div>
+
+        <div class="fx-row">
+            <div class="fx-item">
+                <span class="fx-text">Visualizer</span>
+                <label class="switch">
+                    <input type="checkbox" id="btn-visualizer" checked onchange="toggleVisualizer()">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+            <div class="fx-item">
+                <span class="fx-text">Speed</span>
+                <select onchange="setPlaybackSpeed(this.value)" style="background:#333; color:#fff; border:none; padding:4px; border-radius:4px; font-size:12px;">
+                    <option value="0.5">0.5x</option>
+                    <option value="1.0" selected>1.0x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2.0">2.0x</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="fx-item" style="margin-bottom:20px;">
+            <span class="fx-text">Sleep Timer</span>
+            <select onchange="setSleepTimer(this.value)" style="background:#333; color:#fff; border:none; padding:4px; border-radius:4px; font-size:12px;">
+                <option value="0">Off</option>
+                <option value="15">15 Menit</option>
+                <option value="30">30 Menit</option>
+                <option value="60">60 Menit</option>
+            </select>
         </div>
 
         <div class="eq-section">
@@ -215,7 +246,6 @@
         }
         function closeQualitySheet() {
             document.getElementById('qualitySheet').classList.remove('active');
-            // Cek apakah settings modal juga terbuka, kalau tidak baru tutup overlay
             if(!document.getElementById('settings-modal').classList.contains('show')) {
                 document.getElementById('settings-overlay').style.display = 'none';
             }
