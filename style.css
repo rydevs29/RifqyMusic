@@ -2,7 +2,7 @@
     --bg-dark: #000000;
     --surface: #121212;
     --primary: #ffffff;
-    --accent: #00ff00; /* Akan berubah dinamis jika script aktif */
+    --accent: #00ff00;
     --max-width: 500px;
     --nav-height: 65px;
 }
@@ -14,7 +14,7 @@ body {
     display: flex; justify-content: center;
 }
 
-/* --- LITE MODE OPTIMIZATION --- */
+/* LITE MODE OPTIMIZATION (Hemat GPU) */
 body.lite-version * {
     transition: none !important;
     box-shadow: none !important;
@@ -28,7 +28,7 @@ body > div, .view, .player-overlay, .bottom-nav, .settings-modal, .bottom-sheet 
 .view {
     position: absolute; top: 0; left: 0; height: 100%; width: 100%;
     padding: 20px; padding-bottom: calc(var(--nav-height) + 80px); 
-    overflow-y: auto; display: none; scrollbar-width: none; background: transparent;
+    overflow-y: auto; display: none; scrollbar-width: none; background: var(--bg-dark);
 }
 .view::-webkit-scrollbar { display: none; }
 .view.active { display: block; }
@@ -40,7 +40,7 @@ body > div, .view, .player-overlay, .bottom-nav, .settings-modal, .bottom-sheet 
 #search-input { background: transparent; border: none; color: white; margin-left: 8px; width: 100%; outline: none; font-size: 14px; }
 
 .list-item { display: flex; align-items: center; gap: 15px; padding: 10px; border-radius: 12px; margin-bottom: 5px; transition: 0.2s; }
-.list-item:active { background: rgba(255,255,255,0.1); }
+.list-item:active { background: #1a1a1a; }
 
 .list-img {
     width: 48px; height: 48px; background: #1a1a1a; border-radius: 8px;
@@ -84,7 +84,6 @@ body > div, .view, .player-overlay, .bottom-nav, .settings-modal, .bottom-sheet 
     position: fixed; top: 0; left: 0; right: 0; bottom: 0; margin: 0 auto;
     background: var(--bg-dark); z-index: 2000; transform: translateY(100%);
     transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1); display: flex; flex-direction: column; padding: 25px;
-    padding-top: calc(20px + env(safe-area-inset-top)); /* Safe area untuk player */
 }
 .player-overlay.show { transform: translateY(0); }
 .player-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; margin-top: 10px; }
@@ -109,7 +108,7 @@ body > div, .view, .player-overlay, .bottom-nav, .settings-modal, .bottom-sheet 
     background: rgba(0,0,0,0.8); z-index: 2500; display: none; backdrop-filter: blur(5px);
 }
 
-/* --- UPDATED SETTINGS MODAL (Sticky Header Fix) --- */
+/* --- UPDATED MODAL STYLES (Fix UI Kepotong) --- */
 .settings-modal {
     position: fixed; bottom: 0; left: 50%; transform: translate(-50%, 100%);
     width: 100%; max-width: var(--max-width); background: #111; 
@@ -118,32 +117,27 @@ body > div, .view, .player-overlay, .bottom-nav, .settings-modal, .bottom-sheet 
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
     border-top: 1px solid #333; box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
     
-    /* Layout untuk Sticky Header */
+    /* Layout Flexible agar Header Sticky & Konten Scrollable */
     display: flex;
     flex-direction: column;
-    max-height: 90vh; 
-    padding: 0; /* Padding dipindah ke content */
+    max-height: 90vh; /* Membatasi tinggi agar tidak nabrak atas layar */
+    padding: 0; /* Padding dipindah ke children */
 }
 .settings-modal.show { transform: translate(-50%, 0); }
 
 .settings-header { 
     display: flex; justify-content: space-between; align-items: center; 
-    padding: 20px 25px;
-    padding-top: calc(20px + env(safe-area-inset-top)); /* Jarak Aman Poni HP */
+    padding: 20px 25px; /* Padding Header */
     border-bottom: 1px solid #222;
-    background: #111;
-    position: sticky; top: 0; z-index: 10;
+    background: #111; /* Background Opaque agar konten tidak tembus */
+    position: sticky; /* Nempel di atas */
+    top: 0;
+    z-index: 10;
     flex-shrink: 0;
 }
 .settings-header h3 { color: var(--accent); font-weight: 900; letter-spacing: 1px; }
 
-/* Area Scrollable untuk tombol Settings */
-.settings-content {
-    overflow-y: auto;
-    padding: 20px 25px 40px 25px;
-}
-
-.btn-close { background: #222; border: none; color: #fff; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+.btn-close { background: #222; border: none; color: #fff; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
 .btn-close:active { background: #333; transform: scale(0.9); }
 
 .fx-row { display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px; }
@@ -173,13 +167,16 @@ input:checked + .slider:before { transform: translateX(22px); }
 .eq-slider { writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 40px; height: 100%; background: transparent; cursor: pointer; accent-color: var(--accent); }
 .eq-freq { font-size: 10px; color: #666; font-weight: bold; }
 
-/* --- VISUALIZER & BADGES --- */
+/* --- NEW FEATURES STYLING --- */
+
+/* 1. Visualizer Canvas */
 #visualizer {
     width: 100%; height: 60px; margin-top: 10px; border-radius: 8px;
     background: transparent;
 }
 #visualizer.hidden { display: none !important; }
 
+/* 2. Quality Badge Button (Player) */
 .btn-quality-badge {
     background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
     color: #ccc; padding: 4px 10px; border-radius: 20px; font-size: 11px;
@@ -188,17 +185,17 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 .btn-quality-badge:active { background: rgba(255,255,255,0.2); transform: scale(0.95); }
 
-/* --- BOTTOM SHEET --- */
+/* 3. Bottom Sheet (Popup Menu) */
 .bottom-sheet {
     position: fixed; bottom: -100%; left: 0; width: 100%;
     left: 50%; transform: translateX(-50%);
     background: #1a1a1a; border-radius: 20px 20px 0 0; padding: 25px;
     transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 3000;
     box-shadow: 0 -5px 30px rgba(0,0,0,0.8);
-    padding-bottom: calc(25px + env(safe-area-inset-bottom));
 }
 .bottom-sheet.active { bottom: 0; }
 
+/* 4. Quality Options (Inside Sheet) */
 .q-option {
     padding: 15px; background: #252525; border-radius: 12px;
     margin-bottom: 10px; display: flex; justify-content: space-between;
@@ -206,6 +203,7 @@ input:checked + .slider:before { transform: translateX(22px); }
     transition: 0.2s;
 }
 .q-option:active { transform: scale(0.98); }
-.q-option.active { border-color: var(--accent); background: rgba(0,255,0,0.1); }
+.q-option.active { border-color: var(--accent); background: #153315; }
+
 .q-text h4 { color: #fff; margin-bottom: 2px; font-size: 14px; font-weight: 500; }
 .q-text p { color: #888; font-size: 11px; }
