@@ -13,12 +13,19 @@ let reverbNode, reverbGainNode;
 let monoMergerNode, masterGainNode; 
 let boosterNode; 
 let analyzer, dataArray, canvas, canvasCtx; 
+// Advanced FX Nodes
+let karaokeNode; // AI Vocal Remover
+let compressorNode; // Peak Normalization
 
 // Status FX & App
 let is3D = false;
 let isMono = false;
+let isKaraoke = false;
+let isPeak = false;
+let isCrossfade = false;
+let isLiteMode = false; // Lite Mode
 let currentQuality = 'Hi-Fi'; 
-let isVisualizerEnabled = true; // Default Visualizer Nyala
+let isVisualizerEnabled = true; 
 let playbackSpeed = 1.0;
 let sleepTimer = null;
 
@@ -44,7 +51,7 @@ let savedSongs = JSON.parse(localStorage.getItem('savedSongs')) || [];
 let currentIndex = 0;
 let isShuffle = false;
 let isRepeat = false;
-let lyricsData = []; // Menyimpan data lirik
+let lyricsData = []; 
 
 // --- INITIALIZATION ---
 async function init() {
@@ -94,7 +101,7 @@ function initAudioEngine() {
     audioCtx = new AudioContext();
     source = audioCtx.createMediaElementSource(audioPlayer);
 
-    // EQ
+    // 1. EQUALIZER
     const freqs = [60, 250, 1000, 4000, 16000];
     eqBands = freqs.map(f => {
         const filter = audioCtx.createBiquadFilter();
@@ -103,15 +110,26 @@ function initAudioEngine() {
         filter.gain.value = 0; 
         return filter;
     });
-    let eqChain = source;
-    eqBands.forEach(band => { eqChain.connect(band); eqChain = band; });
-    const eqOutput = eqChain; 
 
-    // Reverb
+    // 2. KARAOKE NODE (Vocal Remover)
+    karaokeNode = audioCtx.createBiquadFilter();
+    karaokeNode.type = "notch"; // Filter pemotong frekuensi
+    karaokeNode.frequency.value = 1000; // Tengah vokal
+    karaokeNode.Q.value = 0; // Default mati (0)
+
+    // 3. PEAK NORMALIZATION (Compressor)
+    compressorNode = audioCtx.createDynamicsCompressor();
+    compressorNode.threshold.setValueAtTime(-24, audioCtx.currentTime);
+    compressorNode.knee.setValueAtTime(40, audioCtx.currentTime);
+    compressorNode.ratio.setValueAtTime(12, audioCtx.currentTime);
+    compressorNode.attack.setValueAtTime(0, audioCtx.currentTime);
+    compressorNode.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+    // 4. REVERB (3D)
     reverbNode = audioCtx.createConvolver();
     reverbGainNode = audioCtx.createGain();
     reverbGainNode.gain.value = 0; 
-    const duration = 1; // Dipercepat biar ringan
+    const duration = 1; 
     const length = audioCtx.sampleRate * duration;
     const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
     for (let i = 0; i < length; i++) {
@@ -121,25 +139,33 @@ function initAudioEngine() {
     }
     reverbNode.buffer = impulse;
 
-    // Booster
+    // 5. GAIN NODES
     boosterNode = audioCtx.createGain();
     boosterNode.gain.value = 1; 
+    
+    masterGainNode = audioCtx.createGain(); 
+    monoMergerNode = audioCtx.createChannelMerger(1); 
 
-    // Analyzer (Visualizer)
+    // 6. ANALYZER
     analyzer = audioCtx.createAnalyser();
-    analyzer.fftSize = 64; // Ringan
+    analyzer.fftSize = 64; 
     dataArray = new Uint8Array(analyzer.frequencyBinCount);
 
-    // Master
-    monoMergerNode = audioCtx.createChannelMerger(1); 
-    masterGainNode = audioCtx.createGain(); 
-
-    // Routing
-    eqOutput.connect(boosterNode);
-    eqOutput.connect(reverbNode);
+    // ROUTING (Chain)
+    // Source -> EQ -> Karaoke -> [Reverb + Booster] -> Compressor -> Master -> [Analyzer + Speaker]
+    let chain = source;
+    eqBands.forEach(band => { chain.connect(band); chain = band; });
+    
+    chain.connect(karaokeNode);
+    karaokeNode.connect(boosterNode);
+    karaokeNode.connect(reverbNode);
+    
     reverbNode.connect(reverbGainNode);
     reverbGainNode.connect(boosterNode);
-    boosterNode.connect(masterGainNode);
+    
+    boosterNode.connect(compressorNode);
+    compressorNode.connect(masterGainNode);
+    
     masterGainNode.connect(analyzer);
     connectFinalOutput();
     
@@ -157,22 +183,18 @@ function connectFinalOutput() {
     }
 }
 
-// --- VISUALIZER ENGINE (OPTIMIZED) ---
+// --- VISUALIZER ENGINE ---
 function initVisualizerCanvas() {
     canvas = document.getElementById('visualizer');
     if(!canvas) return; 
     canvasCtx = canvas.getContext('2d');
-    
-    // FIX: Set dimensi internal canvas agar tidak nge-bug/hilang
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
-
     drawVisualizer();
 }
 
 function drawVisualizer() {
-    // FITUR ON/OFF: Kalau dimatikan, stop looping (Hemat Baterai/CPU)
-    if (!isVisualizerEnabled) return;
+    if (!isVisualizerEnabled) return; // Jika visualizer mati, stop render
 
     requestAnimationFrame(drawVisualizer);
     if(!analyzer) return;
@@ -188,8 +210,7 @@ function drawVisualizer() {
     if (currentQuality === 'Data Saving') barColor = '#2196F3'; 
     if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; 
 
-    // Efek Shadow/Glow (Bisa dimatikan kalau masih berat)
-    canvasCtx.shadowBlur = currentQuality === 'Hi-Fi' ? 10 : 0; 
+    canvasCtx.shadowBlur = currentQuality === 'Hi-Fi' && !isLiteMode ? 10 : 0; 
     canvasCtx.shadowColor = barColor;
 
     for (let i = 0; i < dataArray.length; i++) {
@@ -201,28 +222,66 @@ function drawVisualizer() {
 }
 
 function toggleVisualizer() {
-    // Fungsi ini dipanggil dari checkbox HTML (onchange="toggleVisualizer()")
-    // Pastikan ada input checkbox dengan id="btn-visualizer" di HTML
-    const checkbox = document.getElementById('btn-visualizer');
-    if (checkbox) {
-        isVisualizerEnabled = checkbox.checked;
-        const canvasEl = document.getElementById('visualizer');
-        
-        if (isVisualizerEnabled) {
-            if(canvasEl) canvasEl.style.display = 'block';
-            drawVisualizer(); // Start loop
-        } else {
-            if(canvasEl) canvasEl.style.display = 'none';
-            if(canvasCtx) canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-        }
+    isVisualizerEnabled = document.getElementById('btn-visualizer').checked;
+    const canvasEl = document.getElementById('visualizer');
+    
+    if (isVisualizerEnabled) {
+        if(canvasEl) canvasEl.style.display = 'block';
+        drawVisualizer();
+    } else {
+        if(canvasEl) canvasEl.style.display = 'none';
+        if(canvasCtx) canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
     }
 }
 
-// --- LYRICS ENGINE (NEW) ---
+// --- NEW FEATURES LOGIC ---
+
+function toggleLiteMode() {
+    isLiteMode = document.getElementById('btn-litemode').checked;
+    
+    if (isLiteMode) {
+        // Matikan Visualizer, Reverb, Karaoke untuk hemat performa
+        isVisualizerEnabled = false;
+        if(canvas) canvas.style.display = 'none';
+        
+        if(reverbGainNode) reverbGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+        if(karaokeNode) karaokeNode.Q.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+
+        // Update UI agar user tau fitur mati
+        document.getElementById('btn-visualizer').checked = false;
+        document.getElementById('btn-3d').checked = false;
+        document.getElementById('btn-karaoke').checked = false;
+        
+        alert("Lite Mode Aktif: Efek berat dinonaktifkan.");
+    } else {
+        // Kembalikan ke normal (User harus nyalakan manual fitur yg diinginkan)
+        alert("Lite Mode Mati: Silakan atur kembali fitur.");
+    }
+}
+
+function toggleKaraoke() {
+    isKaraoke = document.getElementById('btn-karaoke').checked;
+    if(karaokeNode) {
+        // Q = 10 (Filter Tajam/Aktif), Q = 0 (Bypass/Mati)
+        karaokeNode.Q.setTargetAtTime(isKaraoke ? 10 : 0, audioCtx.currentTime, 0.1);
+    }
+}
+
+function togglePeak() {
+    isPeak = document.getElementById('btn-peak').checked;
+    if(compressorNode) {
+        // Threshold rendah (-50) = Bypass, Tinggi (-10) = Aktif Normalisasi
+        compressorNode.threshold.setTargetAtTime(isPeak ? -10 : -50, audioCtx.currentTime, 0.1);
+    }
+}
+
+function toggleCrossfade() {
+    isCrossfade = document.getElementById('btn-crossfade').checked;
+}
+
+// --- LYRICS ENGINE ---
 async function loadLyrics(filename) {
-    lyricsData = []; // Reset lirik
-    // Nama file lirik harus sama dengan lagu tapi .lrc (contoh: songs/lyrics/Judul.lrc)
-    // Anda harus buat folder 'lyrics' di dalam 'songs' di GitHub
+    lyricsData = []; 
     const lrcName = filename.replace(/\.[^/.]+$/, "") + ".lrc";
     const url = `https://raw.githubusercontent.com/${CONFIG.user}/${CONFIG.repo}/main/${CONFIG.basePath}/lyrics/${encodeURIComponent(lrcName)}`;
     
@@ -232,58 +291,43 @@ async function loadLyrics(filename) {
             const text = await res.text();
             parseLyrics(text);
         } else {
-            console.log("Lirik tidak ditemukan.");
-            // Kosongkan container lirik jika ada
-            const lyricContainer = document.getElementById('lyrics-container');
-            if(lyricContainer) lyricContainer.innerText = "Lirik tidak tersedia";
+            const lyricContainer = document.getElementById('lyrics-text');
+            if(lyricContainer) lyricContainer.innerText = "...";
         }
-    } catch (e) {
-        console.log("Error loading lyrics");
-    }
+    } catch (e) { console.log("No lyrics found"); }
 }
 
 function parseLyrics(lrcText) {
     const lines = lrcText.split('\n');
     const regex = /^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
-    
     lyricsData = lines.map(line => {
         const match = line.match(regex);
         if (match) {
             const min = parseInt(match[1]);
             const sec = parseInt(match[2]);
             const ms = parseInt(match[3]);
-            const time = min * 60 + sec + ms / 1000;
-            return { time, text: match[4].trim() };
+            return { time: min * 60 + sec + ms / 1000, text: match[4].trim() };
         }
         return null;
     }).filter(l => l !== null);
 }
 
 function updateLyrics(currentTime) {
-    // Fungsi ini akan mencari baris lirik yang pas dengan waktu sekarang
-    // Nanti bisa ditampilkan di UI (misal: document.getElementById('current-lyric').innerText = ...)
     if (lyricsData.length === 0) return;
-    
-    // Logic simpel untuk mencari lirik aktif (Bisa dikembangkan ke UI)
     const currentLine = lyricsData.find((line, index) => {
         const nextLine = lyricsData[index + 1];
         return currentTime >= line.time && (!nextLine || currentTime < nextLine.time);
     });
-
     if (currentLine) {
-        // Jika ada elemen HTML dengan id 'lyrics-text', update textnya
         const lyricEl = document.getElementById('lyrics-text');
         if(lyricEl) lyricEl.innerText = currentLine.text;
     }
 }
 
-// --- PLAYBACK CONTROLS (NEW) ---
-
-// Sleep Timer (Minutes)
+// --- PLAYBACK CONTROLS ---
 function setSleepTimer(minutes) {
     if (sleepTimer) clearTimeout(sleepTimer);
     if (minutes > 0) {
-        console.log(`Sleep timer set for ${minutes} minutes`);
         sleepTimer = setTimeout(() => {
             if (!audioPlayer.paused) togglePlay();
             sleepTimer = null;
@@ -291,7 +335,6 @@ function setSleepTimer(minutes) {
     }
 }
 
-// Playback Speed (0.5x - 2.0x)
 function setPlaybackSpeed(speed) {
     playbackSpeed = parseFloat(speed);
     audioPlayer.playbackRate = playbackSpeed;
@@ -367,19 +410,39 @@ function playSong(index) {
     if(!audioCtx) initAudioEngine();
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
+    // Crossfade Check
+    if (isCrossfade && !audioPlayer.paused) {
+        masterGainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2); // Fade Out 2s
+        setTimeout(() => startNewSong(index), 2000);
+    } else {
+        startNewSong(index);
+    }
+}
+
+function startNewSong(index) {
     currentIndex = index;
     const song = allSongs[index];
     const meta = parseSongInfo(song.name);
     const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
 
-    // Load Lirik Baru
     loadLyrics(song.name);
 
-    // Smart Default Quality
+    // Fade In (Reset Gain)
+    if(masterGainNode) {
+        masterGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        masterGainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
+        masterGainNode.gain.exponentialRampToValueAtTime(1, audioCtx.currentTime + 1);
+    }
+
+    // Smart Default Quality / Lite Mode Priority
     const isFlac = song.name.toLowerCase().endsWith('.flac');
-    if (isFlac) currentQuality = 'Hi-Fi';
-    else currentQuality = 'Standard';
+    if (isLiteMode) {
+        currentQuality = 'Data Saving'; // Paksa rendah di Lite Mode
+    } else {
+        if (isFlac) currentQuality = 'Hi-Fi';
+        else currentQuality = 'Standard';
+    }
     
     const qualityLabel = document.getElementById('current-quality-label');
     if(qualityLabel) qualityLabel.innerText = currentQuality;
@@ -390,8 +453,6 @@ function playSong(index) {
 
     audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
     audioPlayer.setAttribute('data-tried-original', 'false');
-    
-    // Set Playback Rate (agar tetap sama saat ganti lagu)
     audioPlayer.playbackRate = playbackSpeed;
 
     audioPlayer.onerror = function() {
@@ -437,7 +498,7 @@ function selectQuality(quality) {
     
     const song = allSongs[currentIndex];
     audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
-    audioPlayer.playbackRate = playbackSpeed; // Maintain speed
+    audioPlayer.playbackRate = playbackSpeed; 
     
     audioPlayer.onerror = function() {
         console.warn(`File manual quality tidak ada. Fallback.`);
@@ -474,6 +535,7 @@ function updatePlayIcon(isPlaying) {
 function openSettings() {
     document.getElementById('settings-modal').classList.add('show');
     document.getElementById('settings-overlay').style.display = 'block';
+    document.getElementById('settings-modal').scrollTop = 0; // Fix scroll agar tombol X kelihatan
 }
 
 function closeSettings() {
