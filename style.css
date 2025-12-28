@@ -179,7 +179,4 @@ input:checked + .slider:before { transform: translateX(22px); }
     transition: 0.2s;
 }
 .q-option:active { transform: scale(0.98); }
-.q-option.active { border-color: var(--accent); background: #153315; }
-
-.q-text h4 { color: #fff; margin-bottom: 2px; font-size: 14px; font-weight: 500; }
-.q-text p { color: #888; font-size: 11px; }
+.q-option.active { border-color: var(--accent); background: #153315
