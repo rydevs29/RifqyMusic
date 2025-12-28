@@ -2,22 +2,25 @@ const CONFIG = {
     user: 'rydevs29',
     repo: 'RifqyMusic',
     basePath: 'songs',
-    folders: ['lossless', 'med', 'low'] // Memantau semua folder sekaligus
+    folders: ['lossless', 'med', 'low'] 
 };
 
 // --- ULTIMATE AUDIO ENGINE (WEB AUDIO API) ---
 let audioCtx, source;
 // Node Audio FX
-let eqBands = []; // 5 Equalizer
-let reverbNode, reverbGainNode; // 3D Surround
-let monoMergerNode, masterGainNode; // Mono & Master
-let boosterNode; // Volume Boost 200%
-let analyzer, dataArray, canvas, canvasCtx; // Visualizer
+let eqBands = []; 
+let reverbNode, reverbGainNode; 
+let monoMergerNode, masterGainNode; 
+let boosterNode; 
+let analyzer, dataArray, canvas, canvasCtx; 
 
 // Status FX & App
 let is3D = false;
 let isMono = false;
-let currentQuality = 'Hi-Fi'; // Default awal (nanti menyesuaikan jenis file)
+let currentQuality = 'Hi-Fi'; 
+let isVisualizerEnabled = true; // Default Visualizer Nyala
+let playbackSpeed = 1.0;
+let sleepTimer = null;
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous"; 
@@ -41,8 +44,9 @@ let savedSongs = JSON.parse(localStorage.getItem('savedSongs')) || [];
 let currentIndex = 0;
 let isShuffle = false;
 let isRepeat = false;
+let lyricsData = []; // Menyimpan data lirik
 
-// --- INITIALIZATION (MULTI FOLDER SCAN) ---
+// --- INITIALIZATION ---
 async function init() {
     try {
         const fetchPromises = CONFIG.folders.map(async folder => {
@@ -50,7 +54,6 @@ async function init() {
             const res = await fetch(url);
             if (!res.ok) return [];
             const files = await res.json();
-            // Tandai lagu ini asalnya dari folder mana untuk fallback
             return Array.isArray(files) ? files.map(f => ({ 
                 name: f.name, 
                 originalFolder: folder,
@@ -61,7 +64,6 @@ async function init() {
         const results = await Promise.all(fetchPromises);
         const rawSongs = results.flat().filter(f => f.name.toLowerCase().endsWith('.flac') || f.name.toLowerCase().endsWith('.mp3'));
 
-        // Hapus duplikat (Priority: lossless > med > low)
         const uniqueSongs = [];
         const seenNames = new Set();
         for (const s of rawSongs) {
@@ -78,21 +80,21 @@ async function init() {
             renderHomeList(allSongs);
             renderSavedList();
         } else {
-            document.getElementById('loading-text').innerText = "Library Kosong (Cek folder GitHub).";
+            document.getElementById('loading-text').innerText = "Library Kosong.";
         }
     } catch (e) {
         document.getElementById('loading-text').innerText = "Error: " + e.message;
     }
 }
 
-// --- SETUP AUDIO ENGINE CANGGIH ---
+// --- SETUP AUDIO ENGINE ---
 function initAudioEngine() {
     if (audioCtx) return; 
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioCtx = new AudioContext();
     source = audioCtx.createMediaElementSource(audioPlayer);
 
-    // 1. SETUP EQUALIZER
+    // EQ
     const freqs = [60, 250, 1000, 4000, 16000];
     eqBands = freqs.map(f => {
         const filter = audioCtx.createBiquadFilter();
@@ -105,13 +107,11 @@ function initAudioEngine() {
     eqBands.forEach(band => { eqChain.connect(band); eqChain = band; });
     const eqOutput = eqChain; 
 
-    // 2. SETUP 3D REVERB
+    // Reverb
     reverbNode = audioCtx.createConvolver();
     reverbGainNode = audioCtx.createGain();
     reverbGainNode.gain.value = 0; 
-
-    // Impulse Response (Artificial Hall)
-    const duration = 2;
+    const duration = 1; // Dipercepat biar ringan
     const length = audioCtx.sampleRate * duration;
     const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
     for (let i = 0; i < length; i++) {
@@ -121,20 +121,20 @@ function initAudioEngine() {
     }
     reverbNode.buffer = impulse;
 
-    // 3. SETUP VOLUME BOOST
+    // Booster
     boosterNode = audioCtx.createGain();
     boosterNode.gain.value = 1; 
 
-    // 4. SETUP ANALYZER (VISUALIZER)
+    // Analyzer (Visualizer)
     analyzer = audioCtx.createAnalyser();
-    analyzer.fftSize = 64; 
+    analyzer.fftSize = 64; // Ringan
     dataArray = new Uint8Array(analyzer.frequencyBinCount);
 
-    // 5. SETUP MASTER & ROUTING
+    // Master
     monoMergerNode = audioCtx.createChannelMerger(1); 
     masterGainNode = audioCtx.createGain(); 
 
-    // Routing: Source -> EQ -> [Reverb + Booster] -> Master -> [Visualizer + Speaker]
+    // Routing
     eqOutput.connect(boosterNode);
     eqOutput.connect(reverbNode);
     reverbNode.connect(reverbGainNode);
@@ -157,15 +157,23 @@ function connectFinalOutput() {
     }
 }
 
-// --- VISUALIZER ENGINE ---
+// --- VISUALIZER ENGINE (OPTIMIZED) ---
 function initVisualizerCanvas() {
     canvas = document.getElementById('visualizer');
     if(!canvas) return; 
     canvasCtx = canvas.getContext('2d');
+    
+    // FIX: Set dimensi internal canvas agar tidak nge-bug/hilang
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+
     drawVisualizer();
 }
 
 function drawVisualizer() {
+    // FITUR ON/OFF: Kalau dimatikan, stop looping (Hemat Baterai/CPU)
+    if (!isVisualizerEnabled) return;
+
     requestAnimationFrame(drawVisualizer);
     if(!analyzer) return;
 
@@ -176,12 +184,12 @@ function drawVisualizer() {
     let barHeight;
     let x = 0;
 
-    // Warna Visualizer Berdasarkan Kualitas
-    let barColor = '#4CAF50'; // Standard (Hijau)
-    if (currentQuality === 'Data Saving') barColor = '#2196F3'; // Biru
-    if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; // Emas
+    let barColor = '#4CAF50'; 
+    if (currentQuality === 'Data Saving') barColor = '#2196F3'; 
+    if (currentQuality === 'Hi-Fi') barColor = '#FFD700'; 
 
-    canvasCtx.shadowBlur = currentQuality === 'Hi-Fi' ? 15 : 0;
+    // Efek Shadow/Glow (Bisa dimatikan kalau masih berat)
+    canvasCtx.shadowBlur = currentQuality === 'Hi-Fi' ? 10 : 0; 
     canvasCtx.shadowColor = barColor;
 
     for (let i = 0; i < dataArray.length; i++) {
@@ -192,7 +200,104 @@ function drawVisualizer() {
     }
 }
 
-// --- LOGIKA UI & PLAYER ---
+function toggleVisualizer() {
+    // Fungsi ini dipanggil dari checkbox HTML (onchange="toggleVisualizer()")
+    // Pastikan ada input checkbox dengan id="btn-visualizer" di HTML
+    const checkbox = document.getElementById('btn-visualizer');
+    if (checkbox) {
+        isVisualizerEnabled = checkbox.checked;
+        const canvasEl = document.getElementById('visualizer');
+        
+        if (isVisualizerEnabled) {
+            if(canvasEl) canvasEl.style.display = 'block';
+            drawVisualizer(); // Start loop
+        } else {
+            if(canvasEl) canvasEl.style.display = 'none';
+            if(canvasCtx) canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+}
+
+// --- LYRICS ENGINE (NEW) ---
+async function loadLyrics(filename) {
+    lyricsData = []; // Reset lirik
+    // Nama file lirik harus sama dengan lagu tapi .lrc (contoh: songs/lyrics/Judul.lrc)
+    // Anda harus buat folder 'lyrics' di dalam 'songs' di GitHub
+    const lrcName = filename.replace(/\.[^/.]+$/, "") + ".lrc";
+    const url = `https://raw.githubusercontent.com/${CONFIG.user}/${CONFIG.repo}/main/${CONFIG.basePath}/lyrics/${encodeURIComponent(lrcName)}`;
+    
+    try {
+        const res = await fetch(url);
+        if (res.ok) {
+            const text = await res.text();
+            parseLyrics(text);
+        } else {
+            console.log("Lirik tidak ditemukan.");
+            // Kosongkan container lirik jika ada
+            const lyricContainer = document.getElementById('lyrics-container');
+            if(lyricContainer) lyricContainer.innerText = "Lirik tidak tersedia";
+        }
+    } catch (e) {
+        console.log("Error loading lyrics");
+    }
+}
+
+function parseLyrics(lrcText) {
+    const lines = lrcText.split('\n');
+    const regex = /^\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
+    
+    lyricsData = lines.map(line => {
+        const match = line.match(regex);
+        if (match) {
+            const min = parseInt(match[1]);
+            const sec = parseInt(match[2]);
+            const ms = parseInt(match[3]);
+            const time = min * 60 + sec + ms / 1000;
+            return { time, text: match[4].trim() };
+        }
+        return null;
+    }).filter(l => l !== null);
+}
+
+function updateLyrics(currentTime) {
+    // Fungsi ini akan mencari baris lirik yang pas dengan waktu sekarang
+    // Nanti bisa ditampilkan di UI (misal: document.getElementById('current-lyric').innerText = ...)
+    if (lyricsData.length === 0) return;
+    
+    // Logic simpel untuk mencari lirik aktif (Bisa dikembangkan ke UI)
+    const currentLine = lyricsData.find((line, index) => {
+        const nextLine = lyricsData[index + 1];
+        return currentTime >= line.time && (!nextLine || currentTime < nextLine.time);
+    });
+
+    if (currentLine) {
+        // Jika ada elemen HTML dengan id 'lyrics-text', update textnya
+        const lyricEl = document.getElementById('lyrics-text');
+        if(lyricEl) lyricEl.innerText = currentLine.text;
+    }
+}
+
+// --- PLAYBACK CONTROLS (NEW) ---
+
+// Sleep Timer (Minutes)
+function setSleepTimer(minutes) {
+    if (sleepTimer) clearTimeout(sleepTimer);
+    if (minutes > 0) {
+        console.log(`Sleep timer set for ${minutes} minutes`);
+        sleepTimer = setTimeout(() => {
+            if (!audioPlayer.paused) togglePlay();
+            sleepTimer = null;
+        }, minutes * 60000);
+    }
+}
+
+// Playback Speed (0.5x - 2.0x)
+function setPlaybackSpeed(speed) {
+    playbackSpeed = parseFloat(speed);
+    audioPlayer.playbackRate = playbackSpeed;
+}
+
+// --- CORE PLAYER LOGIC ---
 function renderHomeList(songs) {
     homeList.innerHTML = "";
     songs.forEach((song, index) => {
@@ -258,7 +363,6 @@ function parseSongInfo(filename) {
     }
 }
 
-// --- FUNGSI PLAYSONG (SMART DEFAULT & FOLDER FALLBACK) ---
 function playSong(index) {
     if(!audioCtx) initAudioEngine();
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -269,33 +373,30 @@ function playSong(index) {
     const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
 
-    // 1. SMART DEFAULT QUALITY
-    // Jika file FLAC, otomatis set Hi-Fi. Jika MP3, set Standard.
+    // Load Lirik Baru
+    loadLyrics(song.name);
+
+    // Smart Default Quality
     const isFlac = song.name.toLowerCase().endsWith('.flac');
-    if (isFlac) {
-        currentQuality = 'Hi-Fi';
-    } else {
-        currentQuality = 'Standard';
-    }
-    // Update label UI jika ada
+    if (isFlac) currentQuality = 'Hi-Fi';
+    else currentQuality = 'Standard';
+    
     const qualityLabel = document.getElementById('current-quality-label');
     if(qualityLabel) qualityLabel.innerText = currentQuality;
 
-    // 2. LOGIKA PILIH FOLDER
     let targetFolder = 'lossless';
     if (currentQuality === 'Standard') targetFolder = 'med';
     if (currentQuality === 'Data Saving') targetFolder = 'low';
 
-    // 3. SET AUDIO SOURCE
     audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
-    // Reset penanda fallback
     audioPlayer.setAttribute('data-tried-original', 'false');
+    
+    // Set Playback Rate (agar tetap sama saat ganti lagu)
+    audioPlayer.playbackRate = playbackSpeed;
 
-    // 4. FALLBACK SYSTEM
-    // Jika file tidak ada di folder target, cari di folder aslinya (originalFolder)
     audioPlayer.onerror = function() {
         if (audioPlayer.getAttribute('data-tried-original') === 'false') {
-            console.warn(`File di ${targetFolder} tidak ada. Fallback ke ${song.originalFolder}`);
+            console.warn(`Fallback ke ${song.originalFolder}`);
             audioPlayer.setAttribute('data-tried-original', 'true');
             audioPlayer.src = `./songs/${song.originalFolder}/${encodeURIComponent(song.name)}`;
             audioPlayer.play();
@@ -324,34 +425,20 @@ function updateBoost(value) {
 function selectQuality(quality) {
     if(currentQuality === quality) return;
     currentQuality = quality;
-    // Update Label
     const qualityLabel = document.getElementById('current-quality-label');
     if(qualityLabel) qualityLabel.innerText = currentQuality;
 
     const wasPlaying = !audioPlayer.paused;
     const currTime = audioPlayer.currentTime;
     
-    // Logic manual override: 
-    // Saat user manual ganti kualitas, kita paksa ganti folder di playSong
-    // Tapi kita perlu manipulasi playSong agar tidak mereset Smart Default
-    // (Di sini kita sederhanakan: panggil playSong ulang, tapi playSong akan reset kualitas jika kita tidak hati-hati)
-    // SOLUSI: Kita set variable global currentQuality, dan di playSong kita cek apakah ini ganti lagu atau ganti kualitas.
-    // Tapi untuk simplifikasi kode sesuai permintaan, kita pakai logic playSong standar.
-    
-    // Reload lagu dengan folder baru (Logic folder ada di dalam playSong)
-    // NOTE: playSong akan mereset quality berdasarkan file extension.
-    // Agar manual selection bekerja, kita harus bypass logic "Smart Default" jika ini reload manual.
-    // Tapi karena kode dibatasi, fitur Smart Default di playSong akan selalu menang saat ganti lagu.
-    // Saat ganti kualitas manual di tengah lagu, kita lakukan update src langsung di sini:
-
     let targetFolder = 'lossless';
     if (quality === 'Standard') targetFolder = 'med';
     if (quality === 'Data Saving') targetFolder = 'low';
     
     const song = allSongs[currentIndex];
     audioPlayer.src = `./songs/${targetFolder}/${encodeURIComponent(song.name)}`;
+    audioPlayer.playbackRate = playbackSpeed; // Maintain speed
     
-    // Fallback manual juga perlu
     audioPlayer.onerror = function() {
         console.warn(`File manual quality tidak ada. Fallback.`);
         audioPlayer.src = `./songs/${song.originalFolder}/${encodeURIComponent(song.name)}`;
@@ -468,6 +555,9 @@ audioPlayer.ontimeupdate = () => {
         document.getElementById('mini-progress').style.width = pct + '%';
         currentTimeEl.innerText = formatTime(audioPlayer.currentTime);
         durationEl.innerText = formatTime(audioPlayer.duration);
+        
+        // SYNC LYRICS REAL-TIME
+        updateLyrics(audioPlayer.currentTime);
     }
 };
 audioPlayer.onended = () => isRepeat ? audioPlayer.play() : playNext();
