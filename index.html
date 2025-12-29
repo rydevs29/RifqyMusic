@@ -73,6 +73,33 @@
         <div id="saved-list" class="song-list"></div>
     </div>
 
+    <div id="view-profile" class="view">
+        <div class="top-bar">
+            <button class="btn-icon" onclick="switchTab('home')">
+                <span class="material-icons-round">arrow_back</span>
+            </button>
+            <div class="brand-logo" id="header-singer-name">Profile</div>
+        </div>
+
+        <div class="profile-container" style="padding: 20px 0;">
+            <div class="profile-card" style="text-align: center; background: linear-gradient(to bottom, rgba(255,255,255,0.05), transparent); padding: 30px 20px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1);">
+                <div class="profile-img-box" style="width: 150px; height: 150px; border-radius: 50%; overflow: hidden; margin: 0 auto 15px; border: 4px solid var(--accent); box-shadow: 0 0 30px rgba(0,255,0,0.2);">
+                    <img id="singer-photo" src="" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <h1 id="singer-name-profile" style="font-size: 26px; font-weight: 900;">Nama Penyanyi</h1>
+                <p id="singer-tagline" style="color: var(--accent); font-size: 12px; letter-spacing: 2px; font-weight: bold; margin-top: 5px;">OFFICIAL ARTIST</p>
+            </div>
+
+            <div class="profile-stats" style="display: flex; justify-content: space-around; margin: 25px 0; background: #111; padding: 15px; border-radius: 15px;">
+                <div style="text-align: center;"><span style="display: block; font-weight: 900;" id="song-count">0</span><span style="font-size: 10px; color: #666;">SONGS</span></div>
+                <div style="text-align: center;"><span style="display: block; font-weight: 900;">Verified</span><span style="font-size: 10px; color: #666;">STATUS</span></div>
+            </div>
+
+            <h3 style="font-size: 18px; margin-bottom: 15px; padding-left: 5px;">Discography</h3>
+            <div id="singer-songs-list"></div>
+        </div>
+    </div>
+
     <div class="bottom-nav">
         <div id="nav-home" class="nav-item active" onclick="switchTab('home')">
             <span class="material-icons-round nav-icon">home_filled</span>
@@ -198,16 +225,6 @@
             <div class="fx-row">
                 <div class="fx-item">
                     <div class="fx-text-group">
-                        <span class="fx-text">Karaoke Mode</span>
-                        <p style="font-size:10px; color:#666; margin:0;">Instrumental (Folder Swap)</p>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="btn-karaoke" onchange="toggleKaraoke()">
-                        <span class="slider round"></span>
-                    </label>
-                </div>
-                <div class="fx-item">
-                    <div class="fx-text-group">
                         <span class="fx-text">Crossfade</span>
                         <p style="font-size:10px; color:#666; margin:0;">Smooth Transition</p>
                     </div>
@@ -216,17 +233,16 @@
                         <span class="slider round"></span>
                     </label>
                 </div>
-            </div>
-
-            <div class="fx-item" style="margin-bottom:20px;">
-                <div class="fx-text-group">
-                    <span class="fx-text">Peak Normalization</span>
-                    <p style="font-size:10px; color:#666; margin:0;">Stabilkan Volume</p>
+                 <div class="fx-item">
+                    <div class="fx-text-group">
+                        <span class="fx-text">Peak Normalization</span>
+                        <p style="font-size:10px; color:#666; margin:0;">Stabilkan Volume</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="btn-peak" onchange="togglePeak()">
+                        <span class="slider round"></span>
+                    </label>
                 </div>
-                <label class="switch">
-                    <input type="checkbox" id="btn-peak" onchange="togglePeak()">
-                    <span class="slider round"></span>
-                </label>
             </div>
 
             <div class="fx-item" style="margin-bottom: 20px; flex-direction:column; align-items:flex-start;">
