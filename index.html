@@ -194,7 +194,7 @@
         
         <div class="settings-content">
             
-            <div class="fx-item" style="background: rgba(30,30,30,0.8); border: 1px solid #333; margin-bottom: 20px;">
+            <div class="fx-item" style="background: rgba(30,30,30,0.8); border: 1px solid #333; margin-bottom: 10px;">
                 <div class="fx-text-group">
                     <span class="fx-text" style="color:var(--accent);">Lite Mode</span>
                     <p style="font-size:10px; color:#aaa; margin:0;">Hemat Baterai & Anti-Lag</p>
@@ -203,6 +203,40 @@
                     <input type="checkbox" id="btn-litemode" onchange="toggleLiteMode()">
                     <span class="slider round"></span>
                 </label>
+            </div>
+
+            <div class="fx-item" style="background: rgba(30,30,30,0.8); border: 1px solid #333; margin-bottom: 20px;">
+                <div class="fx-text-group">
+                    <span class="fx-text" style="color:var(--accent);">Smart Offline</span>
+                    <p style="font-size:10px; color:#aaa; margin:0;">Simpan otomatis (Hemat Kuota)</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="btn-smart-offline" onchange="toggleSmartOffline()">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
+            <div class="fx-item" style="display:block; margin-bottom: 20px;">
+                <span class="fx-text" style="display:block; margin-bottom:10px;">Focus Mode (Soundscape)</span>
+                <div class="soundscape-grid">
+                    <div class="sound-btn" onclick="toggleSoundscape('rain'); this.classList.toggle('active')">
+                        <span class="material-icons-round">water_drop</span>
+                        <p>Rain</p>
+                    </div>
+                    <div class="sound-btn" onclick="toggleSoundscape('fire'); this.classList.toggle('active')">
+                        <span class="material-icons-round">local_fire_department</span>
+                        <p>Fire</p>
+                    </div>
+                    <div class="sound-btn" onclick="toggleSoundscape('cafe'); this.classList.toggle('active')">
+                        <span class="material-icons-round">storefront</span>
+                        <p>Cafe</p>
+                    </div>
+                    <div class="sound-btn" onclick="toggleSoundscape('off'); document.querySelectorAll('.sound-btn').forEach(b=>b.classList.remove('active'))">
+                        <span class="material-icons-round">close</span>
+                        <p>Off</p>
+                    </div>
+                </div>
+                <input type="range" min="0" max="1" step="0.1" value="0.5" style="width:100%; height:4px; margin-top:10px; accent-color:#666;" oninput="setSoundscapeVolume(this.value)">
             </div>
 
             <div class="fx-row">
@@ -214,9 +248,12 @@
                     </label>
                 </div>
                 <div class="fx-item">
-                    <span class="fx-text">3D Surround</span>
+                    <div class="fx-text-group">
+                        <span class="fx-text">Peak Norm</span>
+                        <p style="font-size:10px; color:#666; margin:0;">Stabilkan Vol</p>
+                    </div>
                     <label class="switch">
-                        <input type="checkbox" id="btn-3d" onchange="toggle3D()">
+                        <input type="checkbox" id="btn-peak" onchange="togglePeak()">
                         <span class="slider round"></span>
                     </label>
                 </div>
@@ -224,22 +261,29 @@
 
             <div class="fx-row">
                 <div class="fx-item">
+                    <span class="fx-text">3D Surround</span>
+                    <label class="switch">
+                        <input type="checkbox" id="btn-3d" onchange="toggle3D()">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                 <div class="fx-item">
+                    <span class="fx-text">8D Audio</span>
+                    <label class="switch">
+                        <input type="checkbox" id="btn-8d" onchange="toggle8D()">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="fx-row">
+                <div class="fx-item" style="width:100%">
                     <div class="fx-text-group">
                         <span class="fx-text">Crossfade</span>
                         <p style="font-size:10px; color:#666; margin:0;">Smooth Transition</p>
                     </div>
                     <label class="switch">
                         <input type="checkbox" id="btn-crossfade" onchange="toggleCrossfade()">
-                        <span class="slider round"></span>
-                    </label>
-                </div>
-                 <div class="fx-item">
-                    <div class="fx-text-group">
-                        <span class="fx-text">Peak Normalization</span>
-                        <p style="font-size:10px; color:#666; margin:0;">Stabilkan Volume</p>
-                    </div>
-                    <label class="switch">
-                        <input type="checkbox" id="btn-peak" onchange="togglePeak()">
                         <span class="slider round"></span>
                     </label>
                 </div>
