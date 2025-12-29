@@ -14,7 +14,7 @@ let monoMergerNode, masterGainNode;
 let boosterNode; 
 let analyzer, dataArray, canvas, canvasCtx; 
 // Advanced FX Nodes
-let karaokeNode; // Disimpan agar chain tidak putus, tapi logicnya diganti file-swap
+let karaokeNode; // Dummy node untuk chain
 let compressorNode; // Peak Normalization
 
 // Status FX & App
@@ -94,80 +94,90 @@ async function init() {
     }
 }
 
-// --- SETUP AUDIO ENGINE ---
+// --- SETUP AUDIO ENGINE (FIXED) ---
 function initAudioEngine() {
     if (audioCtx) return; 
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioCtx = new AudioContext();
-    source = audioCtx.createMediaElementSource(audioPlayer);
+    
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+        source = audioCtx.createMediaElementSource(audioPlayer);
 
-    // 1. EQUALIZER
-    const freqs = [60, 250, 1000, 4000, 16000];
-    eqBands = freqs.map(f => {
-        const filter = audioCtx.createBiquadFilter();
-        filter.type = 'peaking';
-        filter.frequency.value = f;
-        filter.gain.value = 0; 
-        return filter;
-    });
+        // 1. EQUALIZER
+        const freqs = [60, 250, 1000, 4000, 16000];
+        eqBands = freqs.map(f => {
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'peaking';
+            filter.frequency.value = f;
+            filter.gain.value = 0; 
+            return filter;
+        });
 
-    // 2. KARAOKE NODE (Dummy Node untuk menjaga rantai koneksi)
-    karaokeNode = audioCtx.createBiquadFilter();
-    karaokeNode.type = "notch"; 
-    karaokeNode.frequency.value = 1000; 
-    karaokeNode.Q.value = 0; 
+        // 2. KARAOKE NODE (Pass-through)
+        karaokeNode = audioCtx.createBiquadFilter();
+        karaokeNode.type = "notch"; 
+        karaokeNode.frequency.value = 1000; 
+        karaokeNode.Q.value = 0; 
 
-    // 3. PEAK NORMALIZATION
-    compressorNode = audioCtx.createDynamicsCompressor();
-    compressorNode.threshold.setValueAtTime(-24, audioCtx.currentTime);
-    compressorNode.knee.setValueAtTime(40, audioCtx.currentTime);
-    compressorNode.ratio.setValueAtTime(12, audioCtx.currentTime);
-    compressorNode.attack.setValueAtTime(0, audioCtx.currentTime);
-    compressorNode.release.setValueAtTime(0.25, audioCtx.currentTime);
+        // 3. PEAK NORMALIZATION
+        compressorNode = audioCtx.createDynamicsCompressor();
+        compressorNode.threshold.setValueAtTime(-24, audioCtx.currentTime);
+        compressorNode.knee.setValueAtTime(40, audioCtx.currentTime);
+        compressorNode.ratio.setValueAtTime(12, audioCtx.currentTime);
+        compressorNode.attack.setValueAtTime(0, audioCtx.currentTime);
+        compressorNode.release.setValueAtTime(0.25, audioCtx.currentTime);
 
-    // 4. REVERB (3D)
-    reverbNode = audioCtx.createConvolver();
-    reverbGainNode = audioCtx.createGain();
-    reverbGainNode.gain.value = 0; 
-    const duration = 1; 
-    const length = audioCtx.sampleRate * duration;
-    const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
-    for (let i = 0; i < length; i++) {
-        const decay = Math.pow(1 - i / length, 2);
-        impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * decay;
-        impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * decay;
+        // 4. REVERB (3D)
+        reverbNode = audioCtx.createConvolver();
+        reverbGainNode = audioCtx.createGain();
+        reverbGainNode.gain.value = 0; 
+        const duration = 1; 
+        const length = audioCtx.sampleRate * duration;
+        const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
+        for (let i = 0; i < length; i++) {
+            const decay = Math.pow(1 - i / length, 2);
+            impulse.getChannelData(0)[i] = (Math.random() * 2 - 1) * decay;
+            impulse.getChannelData(1)[i] = (Math.random() * 2 - 1) * decay;
+        }
+        reverbNode.buffer = impulse;
+
+        // 5. GAIN NODES
+        boosterNode = audioCtx.createGain();
+        boosterNode.gain.value = 1; 
+        masterGainNode = audioCtx.createGain(); 
+        monoMergerNode = audioCtx.createChannelMerger(1); 
+
+        // 6. ANALYZER
+        analyzer = audioCtx.createAnalyser();
+        analyzer.fftSize = 64; 
+        dataArray = new Uint8Array(analyzer.frequencyBinCount);
+
+        // ROUTING (Chain)
+        let chain = source;
+        eqBands.forEach(band => { chain.connect(band); chain = band; });
+        
+        chain.connect(karaokeNode);
+        karaokeNode.connect(boosterNode);
+        karaokeNode.connect(reverbNode);
+        
+        reverbNode.connect(reverbGainNode);
+        reverbGainNode.connect(boosterNode);
+        
+        boosterNode.connect(compressorNode);
+        compressorNode.connect(masterGainNode);
+        
+        masterGainNode.connect(analyzer);
+        
+        // KONEKSI PENTING KE SPEAKER
+        connectFinalOutput();
+        analyzer.connect(audioCtx.destination); 
+        
+        initVisualizerCanvas();
+        console.log("Audio Engine Ready & Connected!");
+
+    } catch (e) {
+        console.error("Audio Engine Error:", e);
     }
-    reverbNode.buffer = impulse;
-
-    // 5. GAIN NODES
-    boosterNode = audioCtx.createGain();
-    boosterNode.gain.value = 1; 
-    masterGainNode = audioCtx.createGain(); 
-    monoMergerNode = audioCtx.createChannelMerger(1); 
-
-    // 6. ANALYZER
-    analyzer = audioCtx.createAnalyser();
-    analyzer.fftSize = 64; 
-    dataArray = new Uint8Array(analyzer.frequencyBinCount);
-
-    // ROUTING (Chain)
-    let chain = source;
-    eqBands.forEach(band => { chain.connect(band); chain = band; });
-    
-    chain.connect(karaokeNode);
-    karaokeNode.connect(boosterNode);
-    karaokeNode.connect(reverbNode);
-    
-    reverbNode.connect(reverbGainNode);
-    reverbGainNode.connect(boosterNode);
-    
-    boosterNode.connect(compressorNode);
-    compressorNode.connect(masterGainNode);
-    
-    masterGainNode.connect(analyzer);
-    connectFinalOutput();
-    
-    initVisualizerCanvas();
 }
 
 function connectFinalOutput() {
@@ -231,7 +241,7 @@ function toggleVisualizer() {
     }
 }
 
-// --- FEATURES LOGIC (UPDATED) ---
+// --- FEATURES LOGIC ---
 
 function toggleLiteMode() {
     isLiteMode = document.getElementById('btn-litemode').checked;
@@ -240,12 +250,13 @@ function toggleLiteMode() {
         if(canvas) canvas.style.display = 'none';
         if(reverbGainNode) reverbGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
         
-        document.body.classList.add('lite-version'); // Tambah class CSS Lite
+        document.body.classList.add('lite-version'); 
         
         // Reset UI Switches
         document.getElementById('btn-visualizer').checked = false;
         document.getElementById('btn-3d').checked = false;
         document.getElementById('btn-karaoke').checked = false;
+        isKaraoke = false; // Matikan karaoke di lite mode
         
         alert("Lite Mode Aktif: Performa diutamakan.");
     } else {
@@ -254,7 +265,7 @@ function toggleLiteMode() {
     }
 }
 
-// UPDATE: KARAOKE FOLDER LOGIC (Bukan DSP)
+// UPDATE: KARAOKE FOLDER LOGIC (SWAP FILE)
 function toggleKaraoke() {
     isKaraoke = document.getElementById('btn-karaoke').checked;
     
@@ -287,6 +298,7 @@ function toggleKaraoke() {
             alert("Versi Karaoke belum tersedia untuk lagu ini.");
             document.getElementById('btn-karaoke').checked = false;
             isKaraoke = false;
+            
             // Kembalikan ke original
             let folder = (currentQuality === 'Hi-Fi' ? 'lossless' : (currentQuality === 'Standard' ? 'med' : 'low'));
             audioPlayer.src = `./songs/${folder}/${encodeURIComponent(song.name)}`;
@@ -354,34 +366,30 @@ function updateLyrics(currentTime) {
 
 // --- DYNAMIC BACKGROUND & COLOR THIEVERY ---
 function updateThemeColor(imgElement) {
-    if (isLiteMode) return; // Skip di Lite Mode
+    if (isLiteMode) return; 
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 1;
     canvas.height = 1;
     
-    // Gambar ulang img ke canvas 1x1 untuk ambil rata-rata warna
     try {
         ctx.drawImage(imgElement, 0, 0, 1, 1);
         const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
         
-        // Set Variable CSS
         const color = `rgb(${r}, ${g}, ${b})`;
         const dimColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
         
         document.documentElement.style.setProperty('--accent', color);
-        // Efek background gradient halus
         document.body.style.background = `linear-gradient(to bottom, ${dimColor} 0%, #000000 100%)`;
         
-        // Ubah warna text logo jika background terlalu terang (Simple Logic)
+        // Logika Kontras Simple
         if ((r*0.299 + g*0.587 + b*0.114) > 186) {
             document.documentElement.style.setProperty('--accent', '#000000');
         }
 
     } catch (e) {
-        console.warn("CORS/Image error for theme extraction", e);
-        // Reset default
+        console.warn("Theme extraction error (CORS):", e);
         document.documentElement.style.setProperty('--accent', '#00ff00');
         document.body.style.background = '#000000';
     }
@@ -469,8 +477,11 @@ function parseSongInfo(filename) {
     }
 }
 
+// LOGIC UTAMA: PLAY SONG & FOLDER SELECTOR
 function playSong(index) {
     if(!audioCtx) initAudioEngine();
+    
+    // Paksa Resume jika suspended (Fix Hening)
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
     // Crossfade Logic
@@ -542,7 +553,7 @@ function startNewSong(index) {
             alert("Versi Karaoke belum tersedia untuk lagu ini.");
             document.getElementById('btn-karaoke').checked = false;
             isKaraoke = false;
-            // Panggil diri sendiri lagi (recursion) tapi isKaraoke sudah false
+            // Recursion: play ulang dengan status karaoke mati
             startNewSong(index); 
             return;
         }
@@ -616,6 +627,12 @@ function selectQuality(quality) {
 
 function togglePlay() {
     if(!audioCtx) initAudioEngine();
+    
+    // FIX HENING: Resume AudioContext
+    if(audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+
     if (audioPlayer.paused) {
         if(audioPlayer.src) { audioPlayer.play(); updatePlayIcon(true); }
     } else {
@@ -633,7 +650,6 @@ function updatePlayIcon(isPlaying) {
 function openSettings() {
     document.getElementById('settings-modal').classList.add('show');
     document.getElementById('settings-overlay').style.display = 'block';
-    // Fix scroll agar tombol X kelihatan (karena sticky header)
     const content = document.querySelector('.settings-content');
     if(content) content.scrollTop = 0;
 }
