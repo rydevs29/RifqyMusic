@@ -13,14 +13,11 @@ let reverbNode, reverbGainNode;
 let monoMergerNode, masterGainNode; 
 let boosterNode; 
 let analyzer, dataArray, canvas, canvasCtx; 
-// Advanced FX Nodes
-let karaokeNode; // Dummy node untuk chain
 let compressorNode; // Peak Normalization
 
 // Status FX & App
 let is3D = false;
 let isMono = false;
-let isKaraoke = false;
 let isPeak = false;
 let isCrossfade = false;
 let isLiteMode = false; 
@@ -94,7 +91,7 @@ async function init() {
     }
 }
 
-// --- SETUP AUDIO ENGINE (FIXED) ---
+// --- SETUP AUDIO ENGINE (Cleaned: No Karaoke Node) ---
 function initAudioEngine() {
     if (audioCtx) return; 
     
@@ -113,13 +110,7 @@ function initAudioEngine() {
             return filter;
         });
 
-        // 2. KARAOKE NODE (Pass-through)
-        karaokeNode = audioCtx.createBiquadFilter();
-        karaokeNode.type = "notch"; 
-        karaokeNode.frequency.value = 1000; 
-        karaokeNode.Q.value = 0; 
-
-        // 3. PEAK NORMALIZATION
+        // 2. PEAK NORMALIZATION
         compressorNode = audioCtx.createDynamicsCompressor();
         compressorNode.threshold.setValueAtTime(-24, audioCtx.currentTime);
         compressorNode.knee.setValueAtTime(40, audioCtx.currentTime);
@@ -127,7 +118,7 @@ function initAudioEngine() {
         compressorNode.attack.setValueAtTime(0, audioCtx.currentTime);
         compressorNode.release.setValueAtTime(0.25, audioCtx.currentTime);
 
-        // 4. REVERB (3D)
+        // 3. REVERB (3D)
         reverbNode = audioCtx.createConvolver();
         reverbGainNode = audioCtx.createGain();
         reverbGainNode.gain.value = 0; 
@@ -141,31 +132,33 @@ function initAudioEngine() {
         }
         reverbNode.buffer = impulse;
 
-        // 5. GAIN NODES
+        // 4. GAIN NODES
         boosterNode = audioCtx.createGain();
         boosterNode.gain.value = 1; 
         masterGainNode = audioCtx.createGain(); 
         monoMergerNode = audioCtx.createChannelMerger(1); 
 
-        // 6. ANALYZER
+        // 5. ANALYZER
         analyzer = audioCtx.createAnalyser();
         analyzer.fftSize = 64; 
         dataArray = new Uint8Array(analyzer.frequencyBinCount);
 
         // ROUTING (Chain)
+        // Source -> EQ -> Booster -> [Reverb] -> Compressor -> Master -> Analyzer -> Destination
         let chain = source;
         eqBands.forEach(band => { chain.connect(band); chain = band; });
         
-        chain.connect(karaokeNode);
-        karaokeNode.connect(boosterNode);
-        karaokeNode.connect(reverbNode);
+        chain.connect(boosterNode);
         
+        // Reverb path (Parallel)
+        boosterNode.connect(reverbNode);
         reverbNode.connect(reverbGainNode);
-        reverbGainNode.connect(boosterNode);
+        reverbGainNode.connect(compressorNode);
         
+        // Direct path
         boosterNode.connect(compressorNode);
-        compressorNode.connect(masterGainNode);
         
+        compressorNode.connect(masterGainNode);
         masterGainNode.connect(analyzer);
         
         // KONEKSI PENTING KE SPEAKER
@@ -214,7 +207,6 @@ function drawVisualizer() {
     let barHeight;
     let x = 0;
 
-    // Warna Visualizer mengikuti tema/accent
     let computedStyle = getComputedStyle(document.body);
     let barColor = computedStyle.getPropertyValue('--accent').trim() || '#00ff00';
 
@@ -255,58 +247,12 @@ function toggleLiteMode() {
         // Reset UI Switches
         document.getElementById('btn-visualizer').checked = false;
         document.getElementById('btn-3d').checked = false;
-        document.getElementById('btn-karaoke').checked = false;
-        isKaraoke = false; // Matikan karaoke di lite mode
         
         alert("Lite Mode Aktif: Performa diutamakan.");
     } else {
         document.body.classList.remove('lite-version');
         alert("Lite Mode Mati: Silakan atur kembali fitur.");
     }
-}
-
-// UPDATE: KARAOKE FOLDER LOGIC (SWAP FILE)
-function toggleKaraoke() {
-    isKaraoke = document.getElementById('btn-karaoke').checked;
-    
-    // Simpan posisi saat ini
-    const currentTime = audioPlayer.currentTime;
-    const wasPlaying = !audioPlayer.paused;
-    const song = allSongs[currentIndex];
-
-    if (isKaraoke) {
-        console.log("Karaoke Mode ON: Switching to instrumental...");
-        audioPlayer.src = `./songs/karaoke/${encodeURIComponent(song.name)}`;
-    } else {
-        console.log("Karaoke Mode OFF: Back to original...");
-        // Balik ke folder sesuai kualitas
-        let folder = (currentQuality === 'Hi-Fi' ? 'lossless' : (currentQuality === 'Standard' ? 'med' : 'low'));
-        audioPlayer.src = `./songs/${folder}/${encodeURIComponent(song.name)}`;
-    }
-
-    // Sinkronisasi Waktu (Seamless Transition)
-    audioPlayer.onloadeddata = () => {
-        audioPlayer.currentTime = currentTime;
-        if (wasPlaying) audioPlayer.play();
-        audioPlayer.playbackRate = playbackSpeed;
-        audioPlayer.onloadeddata = null;
-    };
-
-    // Fallback Error (Jika file karaoke tidak ada)
-    audioPlayer.onerror = () => {
-        if(isKaraoke) {
-            alert("Versi Karaoke belum tersedia untuk lagu ini.");
-            document.getElementById('btn-karaoke').checked = false;
-            isKaraoke = false;
-            
-            // Kembalikan ke original
-            let folder = (currentQuality === 'Hi-Fi' ? 'lossless' : (currentQuality === 'Standard' ? 'med' : 'low'));
-            audioPlayer.src = `./songs/${folder}/${encodeURIComponent(song.name)}`;
-            audioPlayer.load();
-            audioPlayer.currentTime = currentTime;
-            if(wasPlaying) audioPlayer.play();
-        }
-    };
 }
 
 function togglePeak() {
@@ -318,6 +264,57 @@ function togglePeak() {
 
 function toggleCrossfade() {
     isCrossfade = document.getElementById('btn-crossfade').checked;
+}
+
+// --- NEW FEATURE: SINGER PROFILE ---
+function openSingerProfile(artistName) {
+    // 1. Update UI Header & Foto
+    const headerNameEl = document.getElementById('header-singer-name');
+    const singerNameEl = document.getElementById('singer-name-profile');
+    const singerPhotoEl = document.getElementById('singer-photo');
+    const singerSongsList = document.getElementById('singer-songs-list');
+    const songCountEl = document.getElementById('song-count');
+
+    if(headerNameEl) headerNameEl.innerText = "Profile";
+    if(singerNameEl) singerNameEl.innerText = artistName;
+    
+    // Ambil foto dari folder songs/singers/
+    singerPhotoEl.src = `./songs/singers/${encodeURIComponent(artistName)}.jpg`;
+    singerPhotoEl.onerror = () => { 
+        // Fallback image jika foto artis tidak ada
+        singerPhotoEl.src = 'https://img.icons8.com/material-rounded/128/333333/user.png'; 
+    };
+
+    // 2. Filter lagu milik artis ini
+    const artistSongs = allSongs.filter(s => parseSongInfo(s.name).artist === artistName);
+    if(songCountEl) songCountEl.innerText = artistSongs.length;
+
+    // 3. Render Daftar Lagu Artis
+    singerSongsList.innerHTML = "";
+    if (artistSongs.length === 0) {
+        singerSongsList.innerHTML = "<p style='text-align:center; color:#666; font-size:12px; margin-top:20px;'>No songs found.</p>";
+    } else {
+        artistSongs.forEach((song) => {
+            const idx = allSongs.findIndex(s => s.name === song.name);
+            const meta = parseSongInfo(song.name);
+            
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.onclick = () => { playSong(idx); switchTab('home'); minimizePlayer(); };
+            div.innerHTML = `
+                <div class="list-img"><span class="material-icons-round">audiotrack</span></div>
+                <div class="list-info">
+                    <h4>${meta.title}</h4>
+                    <p>Album • RifqyMusic</p>
+                </div>
+                <span class="material-icons-round" style="color:#333;">play_circle</span>
+            `;
+            singerSongsList.appendChild(div);
+        });
+    }
+
+    // 4. Pindah Tab
+    switchTab('profile');
 }
 
 // --- LYRICS ENGINE ---
@@ -383,7 +380,6 @@ function updateThemeColor(imgElement) {
         document.documentElement.style.setProperty('--accent', color);
         document.body.style.background = `linear-gradient(to bottom, ${dimColor} 0%, #000000 100%)`;
         
-        // Logika Kontras Simple
         if ((r*0.299 + g*0.587 + b*0.114) > 186) {
             document.documentElement.style.setProperty('--accent', '#000000');
         }
@@ -431,9 +427,9 @@ function renderHomeList(songs) {
                 </div>
                 <div class="badge-flac">${isFlac ? 'FLAC' : 'HQ'}</div>
             </div>
-            <div class="list-info" onclick="playSong(${index})">
-                <h4>${meta.title}</h4>
-                <p>${meta.artist}</p>
+            <div class="list-info">
+                <h4 onclick="playSong(${index})">${meta.title}</h4>
+                <p onclick="event.stopPropagation(); openSingerProfile('${meta.artist}')" style="cursor:pointer; color:var(--accent); display:inline-block;">${meta.artist}</p>
             </div>
             <button class="btn-save ${isSaved ? 'active' : ''}" onclick="toggleSave('${song.name}')">
                 <span class="material-icons-round">${isSaved ? 'bookmark' : 'bookmark_border'}</span>
@@ -477,14 +473,11 @@ function parseSongInfo(filename) {
     }
 }
 
-// LOGIC UTAMA: PLAY SONG & FOLDER SELECTOR
+// LOGIC UTAMA: PLAY SONG (No Karaoke Folder)
 function playSong(index) {
     if(!audioCtx) initAudioEngine();
-    
-    // Paksa Resume jika suspended (Fix Hening)
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
-    // Crossfade Logic
     if (isCrossfade && !audioPlayer.paused) {
         masterGainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2); 
         setTimeout(() => startNewSong(index), 2000);
@@ -502,35 +495,30 @@ function startNewSong(index) {
     // Update UI Cover & Title
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
     
-    // Trigger Dynamic Theme saat gambar load
+    // Trigger Dynamic Theme
     fullCover.onload = () => updateThemeColor(fullCover);
     fullCover.onerror = () => {
         fullCover.src='https://img.icons8.com/material-rounded/128/333333/musical-notes.png';
-        // Reset theme ke default jika error
         document.documentElement.style.setProperty('--accent', '#00ff00');
         document.body.style.background = '#000000';
     };
 
     loadLyrics(song.name);
 
-    // Fade In Volume
     if(masterGainNode) {
         masterGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
         masterGainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
         masterGainNode.gain.exponentialRampToValueAtTime(1, audioCtx.currentTime + 1);
     }
 
-    // LOGIC PRIORITAS FOLDER (Karaoke > Lite > Quality)
+    // FOLDER SELECTOR (Tanpa Karaoke)
     let folder = 'lossless';
     const isFlac = song.name.toLowerCase().endsWith('.flac');
 
-    if (isKaraoke) {
-        folder = 'karaoke';
-    } else if (isLiteMode) {
+    if (isLiteMode) {
         currentQuality = 'Data Saving'; 
         folder = 'low';
     } else {
-        // Normal Mode
         if (isFlac) currentQuality = 'Hi-Fi';
         else currentQuality = 'Standard';
         
@@ -538,26 +526,14 @@ function startNewSong(index) {
         if (currentQuality === 'Data Saving') folder = 'low';
     }
     
-    // Update Label UI
     const qualityLabel = document.getElementById('current-quality-label');
-    if(qualityLabel) qualityLabel.innerText = isKaraoke ? 'Karaoke' : currentQuality;
+    if(qualityLabel) qualityLabel.innerText = currentQuality;
 
     audioPlayer.src = `./songs/${folder}/${encodeURIComponent(song.name)}`;
     audioPlayer.setAttribute('data-tried-original', 'false');
     audioPlayer.playbackRate = playbackSpeed;
 
-    // Error Handling Khusus Karaoke / Fallback
     audioPlayer.onerror = function() {
-        if (isKaraoke) {
-            console.warn("Karaoke file not found. Fallback to original.");
-            alert("Versi Karaoke belum tersedia untuk lagu ini.");
-            document.getElementById('btn-karaoke').checked = false;
-            isKaraoke = false;
-            // Recursion: play ulang dengan status karaoke mati
-            startNewSong(index); 
-            return;
-        }
-
         if (audioPlayer.getAttribute('data-tried-original') === 'false') {
             console.warn(`Fallback ke ${song.originalFolder}`);
             audioPlayer.setAttribute('data-tried-original', 'true');
@@ -569,7 +545,10 @@ function startNewSong(index) {
     audioPlayer.play().catch(e => console.log("Menunggu interaksi user..."));
 
     fullTitle.innerText = meta.title;
-    if(fullArtist) fullArtist.innerText = meta.artist;
+    if(fullArtist) {
+        // Nama artis di player bisa diklik untuk buka profile
+        fullArtist.innerHTML = `<span onclick="minimizePlayer(); openSingerProfile('${meta.artist}')" style="cursor:pointer; border-bottom:1px solid transparent;">${meta.artist}</span>`;
+    }
     document.getElementById('mini-title').innerText = meta.title;
     document.getElementById('mini-artist').innerText = meta.artist;
     miniPlayer.classList.remove('hidden');
@@ -586,13 +565,7 @@ function updateBoost(value) {
 }
 
 function selectQuality(quality) {
-    if(currentQuality === quality && !isKaraoke) return;
-    
-    // Jika sedang karaoke dan user ganti kualitas, matikan karaoke
-    if(isKaraoke) {
-        isKaraoke = false;
-        document.getElementById('btn-karaoke').checked = false;
-    }
+    if(currentQuality === quality) return;
 
     currentQuality = quality;
     const qualityLabel = document.getElementById('current-quality-label');
@@ -628,7 +601,6 @@ function selectQuality(quality) {
 function togglePlay() {
     if(!audioCtx) initAudioEngine();
     
-    // FIX HENING: Resume AudioContext
     if(audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
@@ -701,12 +673,18 @@ function toggleSave(name) {
 }
 function maximizePlayer() { fullPlayer.classList.add('show'); }
 function minimizePlayer() { fullPlayer.classList.remove('show'); }
+
 function switchTab(tab) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById(`view-${tab}`).classList.add('active');
-    document.getElementById(`nav-${tab}`).classList.add('active');
+    
+    const targetView = document.getElementById(`view-${tab}`);
+    if(targetView) targetView.classList.add('active');
+    
+    const targetNav = document.getElementById(`nav-${tab}`);
+    if(targetNav) targetNav.classList.add('active');
 }
+
 function handleSearch() {
     const term = searchInput.value.toLowerCase();
     renderHomeList(allSongs.filter(s => s.name.toLowerCase().includes(term)));
