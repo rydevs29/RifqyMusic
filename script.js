@@ -338,6 +338,7 @@ function toggleSoundscape(type) {
     let src = '';
     if(type === 'rain') src = 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg';
     if(type === 'fire') src = 'https://actions.google.com/sounds/v1/ambiences/fire.ogg';
+    if(type === 'cafe') src = 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg';
     
     soundscapeAudio.src = src;
     soundscapeAudio.play();
@@ -380,6 +381,21 @@ function togglePeak() {
 
 function toggleCrossfade() {
     isCrossfade = document.getElementById('btn-crossfade').checked;
+}
+
+function toggle3D() {
+    is3D = document.getElementById('btn-3d').checked;
+    if (!audioCtx) initAudioEngine();
+    
+    if (is3D) {
+        if(is8D) {
+            document.getElementById('btn-8d').checked = false;
+            toggle8D(); // Matikan 8D jika 3D nyala
+        }
+        reverbGainNode.gain.setTargetAtTime(1.5, audioCtx.currentTime, 0.1);
+    } else {
+        reverbGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+    }
 }
 
 // --- SINGER PROFILE ---
@@ -664,7 +680,6 @@ function startNewSong(index) {
     audioPlayer.play().catch(e => console.log("Menunggu interaksi user..."));
 
     fullTitle.innerText = meta.title;
-    // [CODE CONTINUED FROM CUT-OFF POINT]
     if(fullArtist) {
         fullArtist.innerText = meta.artist;
         fullArtist.onclick = () => { minimizePlayer(); openSingerProfile(meta.artist); };
@@ -675,4 +690,164 @@ function startNewSong(index) {
         // SW otomatis akan cache karena request lewat fetch
         console.log("Caching song for offline...");
     }
+    
+    maximizePlayer();
+    updateMiniPlayer(meta.title, meta.artist);
 }
+
+// --- CONTROLS & UTILS ---
+function togglePlay() {
+    if(!audioCtx) initAudioEngine();
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+    const icon = document.getElementById('full-play-icon');
+    const miniIcon = document.getElementById('mini-play-icon');
+    
+    if (audioPlayer.paused) {
+        audioPlayer.play();
+        if(icon) icon.innerText = 'pause';
+        if(miniIcon) miniIcon.innerText = 'pause';
+    } else {
+        audioPlayer.pause();
+        if(icon) icon.innerText = 'play_arrow';
+        if(miniIcon) miniIcon.innerText = 'play_arrow';
+    }
+}
+
+function playNext() {
+    if (isShuffle) {
+        currentIndex = Math.floor(Math.random() * allSongs.length);
+    } else {
+        currentIndex = (currentIndex + 1) % allSongs.length;
+    }
+    playSong(currentIndex);
+}
+
+function playPrev() {
+    currentIndex = (currentIndex - 1 + allSongs.length) % allSongs.length;
+    playSong(currentIndex);
+}
+
+function toggleShuffle() {
+    isShuffle = !isShuffle;
+    document.getElementById('shuffle-btn').style.color = isShuffle ? 'var(--accent)' : 'white';
+}
+
+function toggleRepeat() {
+    isRepeat = !isRepeat;
+    audioPlayer.loop = isRepeat;
+    document.getElementById('repeat-btn').style.color = isRepeat ? 'var(--accent)' : 'white';
+}
+
+function toggleSave(songName) {
+    if (savedSongs.includes(songName)) {
+        savedSongs = savedSongs.filter(s => s !== songName);
+    } else {
+        savedSongs.push(songName);
+    }
+    localStorage.setItem('savedSongs', JSON.stringify(savedSongs));
+    renderHomeList(allSongs);
+    renderSavedList();
+}
+
+function handleSearch() {
+    const query = searchInput.value.toLowerCase();
+    const filtered = allSongs.filter(s => s.name.toLowerCase().includes(query));
+    renderHomeList(filtered);
+}
+
+// --- QUALITY SELECTOR ---
+function selectQuality(q) {
+    currentQuality = q;
+    const label = document.getElementById('current-quality-label');
+    if(label) label.innerText = q;
+    
+    // Force reload song with new quality folder
+    if (!audioPlayer.paused) {
+        const currentTime = audioPlayer.currentTime;
+        playSong(currentIndex); // Restart with new folder logic
+        audioPlayer.currentTime = currentTime; // Restore position (approx)
+    }
+}
+
+// --- UI HELPERS ---
+function switchTab(tab) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    
+    document.getElementById(`view-${tab}`).classList.add('active');
+    const navItem = document.getElementById(`nav-${tab === 'profile' ? 'home' : tab}`);
+    if(navItem) navItem.classList.add('active');
+}
+
+function maximizePlayer() {
+    fullPlayer.classList.add('show');
+    miniPlayer.classList.add('hidden');
+}
+
+function minimizePlayer() {
+    fullPlayer.classList.remove('show');
+    miniPlayer.classList.remove('hidden');
+}
+
+function updateMiniPlayer(title, artist) {
+    document.getElementById('mini-title').innerText = title;
+    document.getElementById('mini-artist').innerText = artist;
+    miniPlayer.classList.remove('hidden');
+}
+
+function openSettings() {
+    document.getElementById('settings-modal').classList.add('show');
+    document.getElementById('settings-overlay').style.display = 'block';
+}
+
+function closeSettings() {
+    document.getElementById('settings-modal').classList.remove('show');
+    document.getElementById('settings-overlay').style.display = 'none';
+}
+
+// --- EVENTS ---
+audioPlayer.addEventListener('timeupdate', () => {
+    const percent = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+    if(progressBar) progressBar.value = percent || 0;
+    if(document.getElementById('mini-progress')) document.getElementById('mini-progress').style.width = percent + '%';
+    
+    const min = Math.floor(audioPlayer.currentTime / 60);
+    const sec = Math.floor(audioPlayer.currentTime % 60);
+    if(currentTimeEl) currentTimeEl.innerText = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+    
+    updateLyrics(audioPlayer.currentTime);
+});
+
+audioPlayer.addEventListener('loadedmetadata', () => {
+    const min = Math.floor(audioPlayer.duration / 60);
+    const sec = Math.floor(audioPlayer.duration % 60);
+    if(durationEl) durationEl.innerText = `${min}:${sec < 10 ? '0' : ''}${sec}`;
+    togglePlay(); // Auto play
+});
+
+audioPlayer.addEventListener('ended', () => {
+    if (!isRepeat) playNext();
+});
+
+progressBar.addEventListener('input', (e) => {
+    const time = (e.target.value / 100) * audioPlayer.duration;
+    audioPlayer.currentTime = time;
+});
+
+// EQ & BOOST
+function updateEQ(index, value) {
+    if (eqBands[index]) eqBands[index].gain.value = value;
+}
+
+function resetEQ() {
+    document.querySelectorAll('.eq-slider').forEach(s => s.value = 0);
+    eqBands.forEach(b => b.gain.value = 0);
+}
+
+function updateBoost(val) {
+    if(boosterNode) boosterNode.gain.value = val;
+}
+
+// --- START APP ---
+window.addEventListener('load', init);
