@@ -21,14 +21,19 @@ let pannerInterval; // Timer animasi 8D
 let soundscapeAudio = new Audio(); // Player khusus suara alam
 let soundscapeGainNode; // Volume suara alam
 
+// [NEW] DYNAMIC VOLUME VARIABLES
+let isDynamicVol = false;
+let micStream = null;
+let micAnalyzer = null;
+
 // Status FX & App
 let is3D = false;
-let is8D = false; // [NEW] Status 8D
+let is8D = false; 
 let isMono = false;
 let isPeak = false;
 let isCrossfade = false;
 let isLiteMode = false; 
-let isOfflineMode = localStorage.getItem('isSmartOffline') === 'true'; // [NEW] Status Cache
+let isOfflineMode = localStorage.getItem('isSmartOffline') === 'true'; 
 let currentQuality = 'Hi-Fi'; 
 let isVisualizerEnabled = true; 
 let playbackSpeed = 1.0;
@@ -36,8 +41,8 @@ let sleepTimer = null;
 
 const audioPlayer = new Audio();
 audioPlayer.crossOrigin = "anonymous"; 
-soundscapeAudio.crossOrigin = "anonymous"; // [NEW]
-soundscapeAudio.loop = true; // [NEW] Suara alam looping
+soundscapeAudio.crossOrigin = "anonymous"; 
+soundscapeAudio.loop = true; 
 
 // UI Elements
 const homeList = document.getElementById('home-list');
@@ -60,10 +65,10 @@ let isShuffle = false;
 let isRepeat = false;
 let lyricsData = []; 
 
-// --- [NEW] SERVICE WORKER REGISTRATION (Smart Offline) ---
+// --- SERVICE WORKER REGISTRATION (Smart Offline) ---
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Service Worker Registered (Smart Offline Ready)', reg))
+        .then(reg => console.log('Service Worker Registered', reg))
         .catch(err => console.log('SW Registration Failed', err));
 }
 
@@ -100,7 +105,6 @@ async function init() {
             document.getElementById('loading-text').style.display = 'none';
             renderHomeList(allSongs);
             renderSavedList();
-            // [NEW] Update status toggle offline di UI jika ada
             const offlineToggle = document.getElementById('btn-smart-offline');
             if(offlineToggle) offlineToggle.checked = isOfflineMode;
         } else {
@@ -111,7 +115,7 @@ async function init() {
     }
 }
 
-// --- SETUP AUDIO ENGINE (Updated with 8D & Soundscape) ---
+// --- SETUP AUDIO ENGINE ---
 function initAudioEngine() {
     if (audioCtx) return; 
     
@@ -120,12 +124,12 @@ function initAudioEngine() {
         audioCtx = new AudioContext();
         source = audioCtx.createMediaElementSource(audioPlayer);
 
-        // [NEW] SOUNDSCAPE NODE (Jalur Terpisah)
+        // SOUNDSCAPE NODE
         const soundscapeSource = audioCtx.createMediaElementSource(soundscapeAudio);
         soundscapeGainNode = audioCtx.createGain();
-        soundscapeGainNode.gain.value = 0.5; // Default volume 50%
+        soundscapeGainNode.gain.value = 0.5; 
         soundscapeSource.connect(soundscapeGainNode);
-        soundscapeGainNode.connect(audioCtx.destination); // Langsung ke output (Bypass EQ music)
+        soundscapeGainNode.connect(audioCtx.destination); 
 
         // 1. EQUALIZER
         const freqs = [60, 250, 1000, 4000, 16000];
@@ -137,8 +141,8 @@ function initAudioEngine() {
             return filter;
         });
 
-        // [NEW] 2. 8D AUDIO (PANNER NODE)
-        pannerNode = audioCtx.createStereoPanner(); // Node untuk geser kiri/kanan
+        // 2. 8D AUDIO
+        pannerNode = audioCtx.createStereoPanner(); 
         pannerNode.pan.value = 0;
 
         // 3. PEAK NORMALIZATION
@@ -149,12 +153,11 @@ function initAudioEngine() {
         compressorNode.attack.setValueAtTime(0, audioCtx.currentTime);
         compressorNode.release.setValueAtTime(0.25, audioCtx.currentTime);
 
-        // 4. REVERB (3D)
+        // 4. REVERB
         reverbNode = audioCtx.createConvolver();
         reverbGainNode = audioCtx.createGain();
         reverbGainNode.gain.value = 0; 
         
-        // Buat Impulse Reverb Sederhana
         const length = audioCtx.sampleRate * 1;
         const impulse = audioCtx.createBuffer(2, length, audioCtx.sampleRate);
         for (let i = 0; i < length; i++) {
@@ -175,26 +178,18 @@ function initAudioEngine() {
         analyzer.fftSize = 64; 
         dataArray = new Uint8Array(analyzer.frequencyBinCount);
 
-        // --- ROUTING (UPDATED CHAIN) ---
-        // Source -> EQ -> [8D Panner] -> Booster -> [Reverb/Compressor] -> Master
-        
+        // ROUTING CHAIN
         let chain = source;
         eqBands.forEach(band => { chain.connect(band); chain = band; });
         
-        // Connect to Panner (8D)
         chain.connect(pannerNode);
-        
-        // Connect Panner to Booster
         pannerNode.connect(boosterNode);
         
-        // Reverb path (Parallel)
         boosterNode.connect(reverbNode);
         reverbNode.connect(reverbGainNode);
         reverbGainNode.connect(compressorNode);
         
-        // Direct path
         boosterNode.connect(compressorNode);
-        
         compressorNode.connect(masterGainNode);
         masterGainNode.connect(analyzer);
         
@@ -202,7 +197,7 @@ function initAudioEngine() {
         analyzer.connect(audioCtx.destination); 
         
         initVisualizerCanvas();
-        console.log("Audio Engine Ready (With 8D & Soundscape)!");
+        console.log("Audio Engine Ready!");
 
     } catch (e) {
         console.error("Audio Engine Error:", e);
@@ -271,12 +266,11 @@ function toggleVisualizer() {
 
 // --- FEATURES LOGIC ---
 
-// [NEW] 1. SMART OFFLINE CACHE LOGIC
+// 1. SMART OFFLINE CACHE
 function toggleSmartOffline() {
     isOfflineMode = document.getElementById('btn-smart-offline').checked;
     localStorage.setItem('isSmartOffline', isOfflineMode);
     
-    // Kirim pesan ke Service Worker
     if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
             action: 'toggleOffline',
@@ -285,56 +279,47 @@ function toggleSmartOffline() {
     }
     
     if(isOfflineMode) {
-        alert("Smart Offline ON: Lagu yang diputar akan disimpan otomatis.");
+        alert("Smart Offline ON: Lagu akan disimpan otomatis.");
     } else {
-        // Opsional: Clear cache jika dimatikan
-        if(confirm("Hapus semua lagu offline untuk hemat memori?")) {
+        if(confirm("Hapus semua lagu offline?")) {
             caches.delete('rifqymusic-songs-v1');
-            alert("Cache lagu dihapus.");
+            alert("Cache dihapus.");
         }
     }
 }
 
-// [NEW] 2. 8D AUDIO LOGIC
+// 2. 8D AUDIO
 function toggle8D() {
     is8D = document.getElementById('btn-8d').checked;
     if (!audioCtx) initAudioEngine();
     
     if (is8D) {
         if(is3D) { 
-            // Matikan 3D jika 8D nyala (biar gak tabrakan efeknya)
             document.getElementById('btn-3d').checked = false;
             reverbGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
             is3D = false;
         }
 
         let time = 0;
-        // Animasi Muter
         pannerInterval = setInterval(() => {
-            // Rumus Sinus agar bergerak halus dari -1 (Kiri) ke 1 (Kanan)
             const x = Math.sin(time); 
             pannerNode.pan.value = x;
-            time += 0.05; // Kecepatan putaran
-        }, 50); // Update setiap 50ms
+            time += 0.05; 
+        }, 50); 
         
     } else {
         clearInterval(pannerInterval);
-        pannerNode.pan.setTargetAtTime(0, audioCtx.currentTime, 0.5); // Balik ke tengah
+        pannerNode.pan.setTargetAtTime(0, audioCtx.currentTime, 0.5); 
     }
 }
 
-// [NEW] 3. SOUNDSCAPE OVERLAY (Focus Mode)
+// 3. SOUNDSCAPE
 function toggleSoundscape(type) {
-    // Type: 'rain', 'fire', 'cafe', atau 'off'
     if (!audioCtx) initAudioEngine();
-    
     if (type === 'off') {
         soundscapeAudio.pause();
         return;
     }
-    
-    // Pastikan file soundscape ada di folder 'assets/sounds/' atau link eksternal
-    // Contoh pakai link sample gratis untuk demo
     let src = '';
     if(type === 'rain') src = 'https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg';
     if(type === 'fire') src = 'https://actions.google.com/sounds/v1/ambiences/fire.ogg';
@@ -348,27 +333,74 @@ function setSoundscapeVolume(val) {
     if(soundscapeGainNode) soundscapeGainNode.gain.value = val;
 }
 
-// --- EXISTING FEATURES ---
+// [NEW] 4. DYNAMIC AUDIO NORMALIZATION
+async function toggleDynamicVol() {
+    isDynamicVol = document.getElementById('btn-dynamic-vol').checked;
+    
+    if (isDynamicVol) {
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const micCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const micSource = micCtx.createMediaStreamSource(micStream);
+            micAnalyzer = micCtx.createAnalyser();
+            micAnalyzer.fftSize = 256;
+            micSource.connect(micAnalyzer);
+            
+            detectNoise(); 
+            alert("Ambient Sense Aktif.");
+        } catch (e) {
+            console.error("Mic error:", e);
+            alert("Butuh izin mikrofon.");
+            document.getElementById('btn-dynamic-vol').checked = false;
+        }
+    } else {
+        if (micStream) {
+            micStream.getTracks().forEach(track => track.stop());
+            if(masterGainNode) masterGainNode.gain.setTargetAtTime(1, audioCtx.currentTime, 0.5);
+        }
+    }
+}
+
+function detectNoise() {
+    if (!isDynamicVol || !micAnalyzer) return;
+
+    const bufferLength = micAnalyzer.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    micAnalyzer.getByteFrequencyData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+        sum += dataArray[i];
+    }
+    const average = sum / bufferLength;
+
+    if (average > 40) {
+        masterGainNode.gain.setTargetAtTime(1.5, audioCtx.currentTime, 0.5); 
+    } else {
+        masterGainNode.gain.setTargetAtTime(1.0, audioCtx.currentTime, 0.5); 
+    }
+
+    requestAnimationFrame(detectNoise);
+}
+
+// --- EXISTING FX ---
 function toggleLiteMode() {
     isLiteMode = document.getElementById('btn-litemode').checked;
     if (isLiteMode) {
         isVisualizerEnabled = false;
         if(canvas) canvas.style.display = 'none';
         if(reverbGainNode) reverbGainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-        
         document.body.classList.add('lite-version'); 
         document.getElementById('btn-visualizer').checked = false;
         document.getElementById('btn-3d').checked = false;
-        // Matikan 8D di Lite Mode
         if(is8D) {
             document.getElementById('btn-8d').checked = false;
             toggle8D();
         }
-        
-        alert("Lite Mode Aktif: Performa diutamakan.");
+        alert("Lite Mode Aktif.");
     } else {
         document.body.classList.remove('lite-version');
-        alert("Lite Mode Mati: Silakan atur kembali fitur.");
+        alert("Lite Mode Mati.");
     }
 }
 
@@ -390,7 +422,7 @@ function toggle3D() {
     if (is3D) {
         if(is8D) {
             document.getElementById('btn-8d').checked = false;
-            toggle8D(); // Matikan 8D jika 3D nyala
+            toggle8D(); 
         }
         reverbGainNode.gain.setTargetAtTime(1.5, audioCtx.currentTime, 0.1);
     } else {
@@ -486,7 +518,7 @@ function updateLyrics(currentTime) {
     }
 }
 
-// --- DYNAMIC BACKGROUND & COLOR THIEVERY ---
+// --- DYNAMIC BACKGROUND ---
 function updateThemeColor(imgElement) {
     if (isLiteMode) return; 
 
@@ -516,19 +548,18 @@ function updateThemeColor(imgElement) {
     }
 }
 
-// --- PLAYBACK CONTROLS ---
+// --- CONTROLS ---
 function setSleepTimer(minutes) {
     if (sleepTimer) clearTimeout(sleepTimer);
     if (minutes > 0) {
         sleepTimer = setTimeout(() => {
-            // [NEW] Fade out volume before stop
             let fadeVol = 1.0;
             let fadeInterval = setInterval(() => {
                 fadeVol -= 0.1;
                 if(fadeVol <= 0) {
                     clearInterval(fadeInterval);
                     if (!audioPlayer.paused) togglePlay();
-                    audioPlayer.volume = 1.0; // Reset
+                    audioPlayer.volume = 1.0; 
                 } else {
                     audioPlayer.volume = fadeVol;
                 }
@@ -542,7 +573,7 @@ function setPlaybackSpeed(speed) {
     audioPlayer.playbackRate = playbackSpeed;
 }
 
-// --- CORE PLAYER LOGIC ---
+// --- CORE PLAYER LOGIC (FIXED) ---
 function renderHomeList(songs) {
     homeList.innerHTML = "";
     songs.forEach((song, index) => {
@@ -608,11 +639,12 @@ function parseSongInfo(filename) {
     }
 }
 
-// LOGIC UTAMA: PLAY SONG (No Karaoke Folder)
+// LOGIC UTAMA: PLAY SONG (FIXED AUTO-PLAY)
 function playSong(index) {
     if(!audioCtx) initAudioEngine();
     if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
+    // Crossfade Logic Check
     if (isCrossfade && !audioPlayer.paused) {
         masterGainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2); 
         setTimeout(() => startNewSong(index), 2000);
@@ -627,10 +659,8 @@ function startNewSong(index) {
     const meta = parseSongInfo(song.name);
     const fileNameNoExt = song.name.replace(/\.[^/.]+$/, "");
     
-    // Update UI Cover & Title
+    // UI Update
     fullCover.src = `./songs/covers/${encodeURIComponent(fileNameNoExt)}.jpg`;
-    
-    // Trigger Dynamic Theme
     fullCover.onload = () => updateThemeColor(fullCover);
     fullCover.onerror = () => {
         fullCover.src='https://img.icons8.com/material-rounded/128/333333/musical-notes.png';
@@ -642,11 +672,10 @@ function startNewSong(index) {
 
     if(masterGainNode) {
         masterGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-        masterGainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
-        masterGainNode.gain.exponentialRampToValueAtTime(1, audioCtx.currentTime + 1);
+        masterGainNode.gain.setValueAtTime(1, audioCtx.currentTime); // Reset volume
     }
 
-    // FOLDER SELECTOR (Tanpa Karaoke)
+    // Quality Selector
     let folder = 'lossless';
     const isFlac = song.name.toLowerCase().endsWith('.flac');
 
@@ -677,7 +706,19 @@ function startNewSong(index) {
         }
     };
 
-    audioPlayer.play().catch(e => console.log("Menunggu interaksi user..."));
+    // FORCE PLAY (AUTO-PLAY FIX)
+    const playPromise = audioPlayer.play();
+    if (playPromise !== undefined) {
+        playPromise.then(_ => {
+            // Play started
+            const icon = document.getElementById('full-play-icon');
+            const miniIcon = document.getElementById('mini-play-icon');
+            if(icon) icon.innerText = 'pause';
+            if(miniIcon) miniIcon.innerText = 'pause';
+        }).catch(error => {
+            console.log("Auto-play prevented by browser, waiting for user interaction.");
+        });
+    }
 
     fullTitle.innerText = meta.title;
     if(fullArtist) {
@@ -685,9 +726,7 @@ function startNewSong(index) {
         fullArtist.onclick = () => { minimizePlayer(); openSingerProfile(meta.artist); };
     }
     
-    // Kirim sinyal ke SW jika Offline Mode aktif
     if (isOfflineMode && navigator.serviceWorker && navigator.serviceWorker.controller) {
-        // SW otomatis akan cache karena request lewat fetch
         console.log("Caching song for offline...");
     }
     
@@ -715,17 +754,26 @@ function togglePlay() {
 }
 
 function playNext() {
+    // FIX LOGIC PLAY NEXT
+    let nextIndex;
     if (isShuffle) {
-        currentIndex = Math.floor(Math.random() * allSongs.length);
+        // Shuffle tapi jangan lagu yg sama
+        do {
+            nextIndex = Math.floor(Math.random() * allSongs.length);
+        } while (nextIndex === currentIndex && allSongs.length > 1);
     } else {
-        currentIndex = (currentIndex + 1) % allSongs.length;
+        nextIndex = (currentIndex + 1) % allSongs.length;
     }
-    playSong(currentIndex);
+    
+    // Beri jeda sedikit agar browser tidak memblokir auto-play
+    setTimeout(() => {
+        playSong(nextIndex);
+    }, 50);
 }
 
 function playPrev() {
-    currentIndex = (currentIndex - 1 + allSongs.length) % allSongs.length;
-    playSong(currentIndex);
+    let prevIndex = (currentIndex - 1 + allSongs.length) % allSongs.length;
+    playSong(prevIndex);
 }
 
 function toggleShuffle() {
@@ -735,7 +783,8 @@ function toggleShuffle() {
 
 function toggleRepeat() {
     isRepeat = !isRepeat;
-    audioPlayer.loop = isRepeat;
+    // Jika repeat aktif, loop audio player di set true
+    audioPlayer.loop = isRepeat; 
     document.getElementById('repeat-btn').style.color = isRepeat ? 'var(--accent)' : 'white';
 }
 
@@ -756,17 +805,15 @@ function handleSearch() {
     renderHomeList(filtered);
 }
 
-// --- QUALITY SELECTOR ---
 function selectQuality(q) {
     currentQuality = q;
     const label = document.getElementById('current-quality-label');
     if(label) label.innerText = q;
     
-    // Force reload song with new quality folder
     if (!audioPlayer.paused) {
         const currentTime = audioPlayer.currentTime;
-        playSong(currentIndex); // Restart with new folder logic
-        audioPlayer.currentTime = currentTime; // Restore position (approx)
+        playSong(currentIndex); 
+        audioPlayer.currentTime = currentTime; 
     }
 }
 
@@ -823,11 +870,16 @@ audioPlayer.addEventListener('loadedmetadata', () => {
     const min = Math.floor(audioPlayer.duration / 60);
     const sec = Math.floor(audioPlayer.duration % 60);
     if(durationEl) durationEl.innerText = `${min}:${sec < 10 ? '0' : ''}${sec}`;
-    togglePlay(); // Auto play
 });
 
+// FIX ENDED LISTENER
 audioPlayer.addEventListener('ended', () => {
-    if (!isRepeat) playNext();
+    if (isRepeat) {
+        audioPlayer.currentTime = 0;
+        audioPlayer.play();
+    } else {
+        playNext();
+    }
 });
 
 progressBar.addEventListener('input', (e) => {
