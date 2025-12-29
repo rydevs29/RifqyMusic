@@ -223,3 +223,11 @@ input:checked + .slider:before { transform: translateX(22px); }
 .q-option.active { border-color: var(--accent); background: rgba(0,255,0,0.1); }
 .q-text h4 { color: #fff; margin-bottom: 2px; font-size: 14px; font-weight: 500; }
 .q-text p { color: #888; font-size: 11px; }
+
+/* --- SINGER PROFILE ANIMATION --- */
+.profile-img-box {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.profile-img-box:active {
+    transform: scale(0.9);
+}
