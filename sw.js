@@ -7,7 +7,7 @@ const STATIC_ASSETS = [
     './',
     './index.html',
     './script.js',
-    './style.css', // Asumsi nama file css kamu
+    './style.css',
     'https://fonts.googleapis.com/icon?family=Material+Icons+Round' // Icon
 ];
 
@@ -60,6 +60,7 @@ self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
     // --- STRATEGI A: KHUSUS FILE LAGU (AUDIO) ---
+    // Cek apakah request mengandung '/songs/' DAN berakhiran mp3/flac
     if (url.pathname.includes('/songs/') && (url.pathname.endsWith('.mp3') || url.pathname.endsWith('.flac'))) {
         event.respondWith(
             caches.open(DYNAMIC_CACHE).then(cache => {
@@ -79,7 +80,6 @@ self.addEventListener('fetch', event => {
                         return networkResponse;
                     }).catch(() => {
                         // Skenario 3: Internet Mati & Lagu gak ada di cache
-                        // (Gagal memutar, browser akan handle error ini)
                         console.log('[SW] Gagal memutar lagu (Offline & Not Cached)');
                     });
                 });
@@ -96,4 +96,3 @@ self.addEventListener('fetch', event => {
         })
     );
 });
-      
