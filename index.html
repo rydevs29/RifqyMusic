@@ -405,4 +405,16 @@
     <script>
         function openQualitySheet() {
             document.getElementById('qualitySheet').classList.add('active');
-            document.getElementById('settings-overlay').
+            document.getElementById('settings-overlay').style.display = 'block';
+        }
+        function closeQualitySheet() {
+            document.getElementById('qualitySheet').classList.remove('active');
+            if(!document.getElementById('settings-modal').classList.contains('show')) {
+                document.getElementById('settings-overlay').style.display = 'none';
+            }
+        }
+    </script>
+
+    <script src="script.js"></script>
+</body>
+</html>
