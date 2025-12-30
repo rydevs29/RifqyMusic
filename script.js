@@ -39,7 +39,7 @@ let isCrossfade = false;
 let isLiteMode = false; 
 let isOfflineMode = localStorage.getItem('isSmartOffline') === 'true'; 
 let currentQuality = 'Hi-Fi'; 
-let isVisualizerEnabled = true; 
+let isVisualizerEnabled = false; 
 let playbackSpeed = 1.0;
 let sleepTimer = null;
 let wakeLock = null; // Optimasi APK
@@ -489,32 +489,32 @@ function openSingerProfile(artistName) {
     switchTab('profile');
 }
 
-// --- LYRICS ENGINE (UPDATED WITH TRANSLATE & AUTO HIDE) ---
+// --- LYRICS ENGINE (UPDATED: AUTO-HIDE MENU TRANSLATE) ---
 async function loadLyrics(filename) {
     lyricsData = []; 
     const lrcName = filename.replace(/\.[^/.]+$/, "") + ".lrc";
     const url = `https://raw.githubusercontent.com/${CONFIG.user}/${CONFIG.repo}/main/${CONFIG.basePath}/lyrics/${encodeURIComponent(lrcName)}`;
     
-    // Ambil tombol switch translate (parent dari input)
+    // Cari elemen menu translate di dalam settings
     const btnTranslateInput = document.getElementById('btn-translate-auto');
-    const btnTranslateContainer = btnTranslateInput ? btnTranslateInput.closest('div') : null;
+    const menuTranslateRow = btnTranslateInput ? btnTranslateInput.closest('.fx-item') : null;
 
     try {
         const res = await fetch(url);
         if (res.ok) {
             const text = await res.text();
             parseLyrics(text);
-            // Ada Lirik -> Tampilkan tombol translate
-            if(btnTranslateContainer) btnTranslateContainer.style.display = 'flex';
+            // Ada Lirik -> Tampilkan menu translate di settings
+            if(menuTranslateRow) menuTranslateRow.style.display = 'flex';
         } else {
-            // Gak Ada Lirik -> Sembunyikan
+            // Gak Ada Lirik -> Sembunyikan menu & teks translate
             document.getElementById('lyrics-text').innerText = "...";
-            if(btnTranslateContainer) btnTranslateContainer.style.display = 'none';
+            if(menuTranslateRow) menuTranslateRow.style.display = 'none';
             document.getElementById('lyrics-translate').style.display = 'none';
         }
     } catch (e) { 
         console.log("No lyrics found");
-        if(btnTranslateContainer) btnTranslateContainer.style.display = 'none';
+        if(menuTranslateRow) menuTranslateRow.style.display = 'none';
     }
 }
 
@@ -546,7 +546,7 @@ function updateLyrics(currentTime) {
         lastLyricsText = currentLine.text;
         document.getElementById('lyrics-text').innerText = lastLyricsText;
 
-        // Jika fitur translate aktif, panggil API
+        // Jika fitur translate aktif (tombol ON), panggil API
         if (isTranslateEnabled) {
             handleTranslation(lastLyricsText);
         }
@@ -559,7 +559,7 @@ function toggleTranslate() {
     
     if (isTranslateEnabled) {
         transEl.style.display = 'block';
-        handleTranslation(lastLyricsText); // Langsung translate
+        handleTranslation(lastLyricsText); // Langsung translate teks saat ini
     } else {
         transEl.style.display = 'none';
         transEl.innerText = "";
