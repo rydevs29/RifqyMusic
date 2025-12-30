@@ -39,7 +39,7 @@ let isCrossfade = false;
 let isLiteMode = false; 
 let isOfflineMode = localStorage.getItem('isSmartOffline') === 'true'; 
 let currentQuality = 'Hi-Fi'; 
-let isVisualizerEnabled = false; 
+let isVisualizerEnabled = true; 
 let playbackSpeed = 1.0;
 let sleepTimer = null;
 let wakeLock = null; // Optimasi APK
