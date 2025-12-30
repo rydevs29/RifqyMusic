@@ -150,17 +150,9 @@
                 <span id="current-quality-label">Hi-Fi</span>
             </button>
 
-            <div class="lyrics-wrapper" style="margin: 20px 0; min-height: 100px;">
+            <div class="lyrics-wrapper" style="margin: 20px 0; min-height: 80px;">
                 <p id="lyrics-text">...</p>
                 <p id="lyrics-translate" style="display: none;"></p>
-                
-                <div style="display: flex; align-items: center; justify-content: center; margin-top: 15px; gap: 8px;">
-                    <span style="font-size: 10px; color: #666; font-weight: bold; letter-spacing: 1px;">TERJEMAHAN</span>
-                    <label class="switch" style="transform: scale(0.7);">
-                        <input type="checkbox" id="btn-translate-auto" onchange="toggleTranslate()">
-                        <span class="slider round"></span>
-                    </label>
-                </div>
             </div>
 
             <canvas id="visualizer"></canvas>
@@ -234,6 +226,17 @@
                 </div>
                 <label class="switch">
                     <input type="checkbox" id="btn-dynamic-vol" onchange="toggleDynamicVol()">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+
+            <div class="fx-item" style="background: rgba(30,30,30,0.8); border: 1px solid #333; margin-bottom: 20px;">
+                <div class="fx-text-group">
+                    <span class="fx-text" style="color:var(--accent);">Lirik Terjemahan</span>
+                    <p style="font-size:10px; color:#aaa; margin:0;">Tampilkan arti lirik (Indonesia)</p>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="btn-translate-auto" onchange="toggleTranslate()">
                     <span class="slider round"></span>
                 </label>
             </div>
